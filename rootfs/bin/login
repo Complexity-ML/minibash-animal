@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# minibash-linux login.
+#
+# Authenticates against the `users` table in bdb (the single source of truth).
+# Honours kernel command line options (like agetty --autologin):
+#   minibash.user=NAME        pre-fill the login name (still asks for password)
+#   minibash.autologin=NAME   log NAME in without a password (dev console)
+set -u
+
+BDB_PATH="${BDB_PATH:-/var/bdb}"; export BDB_PATH
+HOSTNAME="${HOSTNAME:-minibash}"
+VERSION="$(cat /etc/minibash/VERSION 2>/dev/null || echo 0.0.0)"
+
+# --- kernel command line -----------------------------------------------------
+prefill_user=""
+autologin_user=""
+if [ -r /proc/cmdline ]; then
+  for tok in $(cat /proc/cmdline); do
+    case "$tok" in
+      minibash.autologin=*) autologin_user="${tok#minibash.autologin=}" ;;
+      minibash.user=*)      prefill_user="${tok#minibash.user=}" ;;
+    esac
+  done
+fi
+
+# row for a user from the bdb users table (decoded, tab-separated)
+# NB: here-strings (<<<) are fine; only process substitution needs /dev/fd.
+lookup_user() {
+  /bin/bdb dump users | tail -n +2 \
+    | awk -F'\t' -v u="$1" '$1 == u { print; exit }'
+}
+
+banner() {
+  printf '\n%s %s (console)\n\n' "$HOSTNAME" "$VERSION"
+}
+
+start_session() {
+  local name="$1" shell="$2" home="$3"
+  : "${home:=/root}"
+  : "${shell:=/bin/bash}"
+  export USER="$name" LOGNAME="$name" HOME="$home" SHELL="$shell"
+  export PATH=/bin:/usr/bin:/sbin:/usr/sbin:/services
+  # name embedded literally so the prompt is right even without a passwd lookup
+  export PS1="[${name}@${HOSTNAME} \\W]\\$ "
+  cd "$home" 2>/dev/null || cd /
+  echo "Welcome to minibash-linux, ${name}. Try: bashsvc status"
+  "$shell" -i
+  echo "logout"
+}
+
+while true; do
+  banner
+
+  if [ -n "$autologin_user" ]; then
+    echo "${HOSTNAME} login: ${autologin_user} (autologin)"
+    username="$autologin_user"
+    skip_pw=1
+  else
+    if [ -n "$prefill_user" ]; then
+      printf '%s login [%s]: ' "$HOSTNAME" "$prefill_user"
+    else
+      printf '%s login: ' "$HOSTNAME"
+    fi
+    read -r username || { echo; continue; }
+    [ -z "$username" ] && username="$prefill_user"
+    [ -z "$username" ] && continue
+    skip_pw=0
+  fi
+
+  IFS=$'\t' read -r u_name u_pw u_shell u_home _gecos <<< "$(lookup_user "$username")"
+
+  if [ -z "${u_name:-}" ]; then
+    if [ "$skip_pw" = 1 ]; then
+      echo "autologin: unknown user '$username', falling back to prompt"
+      autologin_user=""
+      sleep 1
+      continue
+    fi
+    printf 'Password: '; read -rs _ || true; echo
+    echo 'Login incorrect'; sleep 1; continue
+  fi
+
+  if [ "$skip_pw" != 1 ]; then
+    printf 'Password: '
+    read -rs password || { echo; continue; }
+    echo
+    if [ "$password" != "$u_pw" ]; then
+      echo 'Login incorrect'; sleep 1; continue
+    fi
+  fi
+
+  start_session "$u_name" "$u_shell" "$u_home"
+done

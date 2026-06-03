@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Conservative disk installer for minibash-linux.
+set -euo pipefail
+
+TARGET=""
+KERNEL=""
+INITRAMFS=""
+YES="0"
+
+usage() {
+  cat <<'USAGE'
+usage: minibash-install --target /dev/DEVICE --kernel bzImage --initramfs initramfs.cpio.gz --yes
+
+Formats TARGET as ext2, seeds the persistent bdb database, installs an A/B
+boot layout, writes extlinux config, and runs extlinux when available.
+
+Safety:
+  - refuses to run without --yes
+  - refuses mounted targets visible in /proc/mounts
+  - refuses missing kernel/initramfs artifacts
+
+This expects TARGET to be the boot filesystem/device you want to overwrite.
+USAGE
+}
+
+die() {
+  echo "minibash-install: $*" >&2
+  exit 1
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target) TARGET="${2:-}"; shift 2 ;;
+    --kernel) KERNEL="${2:-}"; shift 2 ;;
+    --initramfs) INITRAMFS="${2:-}"; shift 2 ;;
+    --yes) YES="1"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage; exit 1 ;;
+  esac
+done
+
+[ "$YES" = "1" ] || die "refusing without --yes"
+[ -n "$TARGET" ] || die "missing --target"
+[ -n "$KERNEL" ] || die "missing --kernel"
+[ -n "$INITRAMFS" ] || die "missing --initramfs"
+[ -b "$TARGET" ] || die "not a block device: $TARGET"
+[ -f "$KERNEL" ] || die "kernel not found: $KERNEL"
+[ -f "$INITRAMFS" ] || die "initramfs not found: $INITRAMFS"
+
+if awk -v dev="$TARGET" '$1 == dev { found = 1 } END { exit !found }' /proc/mounts; then
+  die "target is mounted: $TARGET"
+fi
+
+echo "minibash-install: formatting $TARGET as ext2"
+busybox mke2fs -q -F "$TARGET"
+
+mountpoint="/tmp/minibash-install-target"
+mkdir -p "$mountpoint"
+mount -t ext2 "$TARGET" "$mountpoint"
+trap 'umount "$mountpoint" 2>/dev/null || true' EXIT
+
+mkdir -p "$mountpoint"/{boot/extlinux,boot/minibash/A,boot/minibash/B,var/bdb,etc/minibash}
+cp -R /etc/minibash/bdb/. "$mountpoint/var/bdb/"
+cp -R /etc/minibash/. "$mountpoint/etc/minibash/"
+
+cp "$KERNEL" "$mountpoint/boot/minibash/A/bzImage"
+cp "$INITRAMFS" "$mountpoint/boot/minibash/A/initramfs.cpio.gz"
+cp "$KERNEL" "$mountpoint/boot/minibash/B/bzImage"
+cp "$INITRAMFS" "$mountpoint/boot/minibash/B/initramfs.cpio.gz"
+
+cat > "$mountpoint/boot/extlinux/extlinux.conf" <<'EOF'
+DEFAULT minibash-A
+PROMPT 0
+TIMEOUT 20
+
+LABEL minibash-A
+  KERNEL /minibash/A/bzImage
+  INITRD /minibash/A/initramfs.cpio.gz
+  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.slot=A
+
+LABEL minibash-B
+  KERNEL /minibash/B/bzImage
+  INITRD /minibash/B/initramfs.cpio.gz
+  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.slot=B
+EOF
+
+if command -v extlinux >/dev/null 2>&1; then
+  echo "minibash-install: installing extlinux"
+  extlinux --install "$mountpoint/boot/extlinux"
+else
+  echo "minibash-install: extlinux binary missing; config written only"
+fi
+
+mbr="/usr/lib/SYSLINUX/mbr.bin"
+if [ -f "$mbr" ]; then
+  echo "minibash-install: writing syslinux MBR"
+  dd if="$mbr" of="$TARGET" bs=440 count=1 conv=notrunc 2>/dev/null || true
+fi
+
+cat > "$mountpoint/README.minibash-install" <<'EOF'
+minibash-linux installed.
+
+Boot layout:
+  /boot/minibash/A
+  /boot/minibash/B
+  /boot/extlinux/extlinux.conf
+EOF
+
+sync
+echo "minibash-install: target prepared at $TARGET"

@@ -1,0 +1,13 @@
+[package]
+name = "minit"
+version = "0.3.0"
+edition = "2021"
+
+[[bin]]
+name = "minit"
+path = "src/main.rs"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

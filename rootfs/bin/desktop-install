@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Install the optional desktop payload from the USB data partition.
+set -u
+
+PAYLOAD_MOUNT="${PAYLOAD_MOUNT:-/run/minibash/desktop-media}"
+PAYLOAD_TAR="${PAYLOAD_TAR:-minibash-desktop/desktop-root.tar.gz}"
+MARKER="${MARKER:-minibash-desktop/MANIFEST}"
+
+log() {
+  printf 'desktop-install: %s\n' "$*"
+}
+
+mounted_payload=""
+
+try_mount() {
+  local dev="$1"
+  mkdir -p "$PAYLOAD_MOUNT"
+  if mount -t ext2 -o ro "$dev" "$PAYLOAD_MOUNT" 2>/dev/null; then
+    if [ -f "$PAYLOAD_MOUNT/$MARKER" ] && [ -f "$PAYLOAD_MOUNT/$PAYLOAD_TAR" ]; then
+      mounted_payload="$dev"
+      return 0
+    fi
+    umount "$PAYLOAD_MOUNT" 2>/dev/null || true
+  fi
+  return 1
+}
+
+find_payload() {
+  local dev
+  for dev in /dev/sd*[0-9] /dev/vd*[0-9] /dev/nvme*n*p[0-9]; do
+    [ -b "$dev" ] || continue
+    try_mount "$dev" && return 0
+  done
+  return 1
+}
+
+install_payload() {
+  if command -v weston >/dev/null 2>&1 && command -v foot >/dev/null 2>&1; then
+    log "desktop runtime already installed"
+    return 0
+  fi
+
+  if ! find_payload; then
+    log "desktop payload not found"
+    return 1
+  fi
+
+  log "installing payload from $mounted_payload"
+  tar -xzf "$PAYLOAD_MOUNT/$PAYLOAD_TAR" -C /
+  sync
+  umount "$PAYLOAD_MOUNT" 2>/dev/null || true
+
+  if command -v weston >/dev/null 2>&1; then
+    log "weston installed"
+    return 0
+  fi
+  log "payload extracted but weston is still missing"
+  return 1
+}
+
+case "${1:-install}" in
+  install|--auto) install_payload ;;
+  *) echo "usage: desktop-install [install|--auto]" >&2; exit 1 ;;
+esac

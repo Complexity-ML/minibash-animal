@@ -1,0 +1,9 @@
+out/
+rust/**/target/
+rust/**/Cargo.lock
+*.log
+*.img
+*.iso
+*.cpio.gz
+*.tar.gz
+.DS_Store

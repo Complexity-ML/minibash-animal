@@ -1,0 +1,7 @@
+slot	text	pk
+version	text
+state	text
+kernel	text
+initramfs	text
+tries	int
+notes	text

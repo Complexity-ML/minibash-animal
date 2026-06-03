@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# bashsvc - control client for minit (PID 1).
+#
+# bashsvc no longer launches anything itself. It edits the desired state in the
+# bdb database (the single source of truth) and pokes minit with SIGUSR1 so the
+# supervisor reconciles immediately. Lifecycle (reap, restart, shutdown) is
+# owned by minit.
+set -uo pipefail
+
+BDB_PATH="${BDB_PATH:-/var/bdb}"
+export BDB_PATH
+INIT_PID=1
+
+usage() {
+  cat <<'USAGE'
+usage: bashsvc <command> [args]
+
+  list                 show all services and their state
+  status [SERVICE]     same as list, but verify pids against /proc
+  start SERVICE        request SERVICE up   (desired=up, reload minit)
+  stop SERVICE         request SERVICE down (desired=down, reload minit)
+  restart SERVICE      stop then start SERVICE
+  enable SERVICE       autostart=true  + desired=up
+  disable SERVICE      autostart=false + desired=down
+  logs SERVICE         show captured log lines from the bdb logs table
+  reload               ask minit to reconcile now (SIGUSR1)
+  poweroff             clean shutdown + power off (SIGTERM to PID 1)
+  reboot               clean shutdown + reboot   (SIGUSR2 to PID 1)
+  db ARGS...           raw passthrough to /bin/bdb
+USAGE
+}
+
+die() {
+  echo "bashsvc: $*" >&2
+  exit 1
+}
+
+# decoded rows of the services table, without the header
+service_rows() {
+  /bin/bdb dump services | tail -n +2
+}
+
+# NB: no process substitution anywhere - the minimal initramfs may not mount
+# /dev/fd, so we rely on pipes and temp files only.
+service_exists() {
+  local wanted="$1"
+  service_rows | awk -F'\t' -v n="$wanted" '$1 == n { found = 1 } END { exit !found }'
+}
+
+poke_minit() {
+  # SIGUSR1 -> reconcile immediately. Harmless if PID 1 is not minit.
+  kill -USR1 "$INIT_PID" 2>/dev/null || true
+}
+
+set_field() {
+  local name="$1"; shift
+  /bin/bdb update services --where "name=$name" "$@" >/dev/null
+}
+
+cmd_start() {
+  local s="${1:?usage: bashsvc start SERVICE}"
+  service_exists "$s" || die "service inconnu: $s"
+  set_field "$s" desired=up
+  poke_minit
+  echo "bashsvc: requested $s up"
+}
+
+cmd_stop() {
+  local s="${1:?usage: bashsvc stop SERVICE}"
+  service_exists "$s" || die "service inconnu: $s"
+  set_field "$s" desired=down
+  poke_minit
+  echo "bashsvc: requested $s down"
+}
+
+cmd_restart() {
+  local s="${1:?usage: bashsvc restart SERVICE}"
+  service_exists "$s" || die "service inconnu: $s"
+  set_field "$s" desired=down
+  poke_minit
+  sleep 1
+  set_field "$s" desired=up
+  poke_minit
+  echo "bashsvc: restarted $s"
+}
+
+cmd_enable() {
+  local s="${1:?usage: bashsvc enable SERVICE}"
+  service_exists "$s" || die "service inconnu: $s"
+  set_field "$s" autostart=true desired=up
+  poke_minit
+  echo "bashsvc: enabled $s"
+}
+
+cmd_disable() {
+  local s="${1:?usage: bashsvc disable SERVICE}"
+  service_exists "$s" || die "service inconnu: $s"
+  set_field "$s" autostart=false desired=down
+  poke_minit
+  echo "bashsvc: disabled $s"
+}
+
+cmd_list() {
+  /bin/bdb select services
+}
+
+# verify the pid recorded in bdb is actually alive
+cmd_status() {
+  if [ $# -ge 1 ]; then
+    /bin/bdb select services --where "name=$1"
+  fi
+  printf '%-12s %-9s %-8s %-6s %s\n' NAME DESIRED STATUS PID LIVE
+  service_rows | while IFS=$'\t' read -r name command autostart restart desired status pid description; do
+    [ -n "${name:-}" ] || continue
+    local live="-"
+    if [ "${pid:-0}" != "0" ] && [ -d "/proc/$pid" ]; then
+      live="yes"
+    elif [ "$status" = "running" ]; then
+      live="STALE"
+    fi
+    printf '%-12s %-9s %-8s %-6s %s\n' "$name" "$desired" "$status" "$pid" "$live"
+  done
+}
+
+cmd_logs() {
+  local s="${1:?usage: bashsvc logs SERVICE}"
+  /bin/bdb select logs --where "service=$s"
+}
+
+main() {
+  local cmd="${1:-help}"
+  shift || true
+  case "$cmd" in
+    list)        cmd_list ;;
+    status)      cmd_status "$@" ;;
+    start)       cmd_start "$@" ;;
+    stop)        cmd_stop "$@" ;;
+    restart)     cmd_restart "$@" ;;
+    enable)      cmd_enable "$@" ;;
+    disable)     cmd_disable "$@" ;;
+    logs)        cmd_logs "$@" ;;
+    reload)      poke_minit; echo "bashsvc: reload sent" ;;
+    poweroff)    echo "bashsvc: powering off"; kill -TERM "$INIT_PID" ;;
+    reboot)      echo "bashsvc: rebooting"; kill -USR2 "$INIT_PID" ;;
+    db)          /bin/bdb "$@" ;;
+    help|-h|--help) usage ;;
+    *)           usage; exit 1 ;;
+  esac
+}
+
+main "$@"

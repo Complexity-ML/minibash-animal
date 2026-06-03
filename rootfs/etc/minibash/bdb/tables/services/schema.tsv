@@ -1,0 +1,8 @@
+name	text	pk
+command	text
+autostart	bool
+restart	bool
+desired	text
+status	text
+pid	int
+description	text

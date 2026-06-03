@@ -1,0 +1,7 @@
+id	text	pk
+version	text
+state	text
+slot	text
+artifact	text
+checksum	text
+notes	text

@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BDB_PATH="${BDB_PATH:-/var/bdb}"
+BOOT_DIR="${BOOT_DIR:-/boot}"
+export BDB_PATH
+
+usage() {
+  cat <<'USAGE'
+usage: minibash-update slots
+       minibash-update list
+       minibash-update stage VERSION KERNEL INITRAMFS [SHA256]
+       minibash-update commit UPDATE_ID
+       minibash-update mark-good SLOT
+       minibash-update rollback
+
+A/B model:
+  active  -> currently trusted slot
+  idle    -> inactive slot, safe target for staging
+  pending -> selected for next boot
+  good    -> boot confirmed; can be promoted to active
+
+The bootloader config is extlinux at /boot/extlinux/extlinux.conf.
+USAGE
+}
+
+die() {
+  echo "update: $*" >&2
+  exit 1
+}
+
+slot_rows() {
+  /bin/bdb dump boot_slots | tail -n +2
+}
+
+active_slot() {
+  slot_rows | awk -F '\t' '$3 == "active" || $3 == "good" { print $1; exit }'
+}
+
+inactive_slot() {
+  local active
+  active="$(active_slot)"
+  slot_rows | awk -F '\t' -v a="$active" '$1 != a { print $1; exit }'
+}
+
+write_extlinux_conf() {
+  local default_slot="$1"
+  local conf_dir="$BOOT_DIR/extlinux"
+  mkdir -p "$conf_dir"
+  cat > "$conf_dir/extlinux.conf" <<EOF
+DEFAULT minibash-${default_slot}
+PROMPT 0
+TIMEOUT 20
+
+LABEL minibash-A
+  KERNEL /minibash/A/bzImage
+  INITRD /minibash/A/initramfs.cpio.gz
+  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.slot=A
+
+LABEL minibash-B
+  KERNEL /minibash/B/bzImage
+  INITRD /minibash/B/initramfs.cpio.gz
+  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.slot=B
+EOF
+}
+
+stage_update() {
+  local version="$1"
+  local kernel="$2"
+  local initramfs="$3"
+  local checksum="${4:---}"
+  local slot id dest got
+
+  [ -f "$kernel" ] || die "missing kernel: $kernel"
+  [ -f "$initramfs" ] || die "missing initramfs: $initramfs"
+  if [ "$checksum" != "--" ]; then
+    got="$(cat "$kernel" "$initramfs" | sha256sum | awk '{print $1}')"
+    [ "$got" = "$checksum" ] || die "checksum mismatch"
+  fi
+
+  slot="$(inactive_slot)"
+  [ -n "$slot" ] || die "no inactive slot found"
+  dest="$BOOT_DIR/minibash/$slot"
+  mkdir -p "$dest"
+  cp "$kernel" "$dest/bzImage"
+  cp "$initramfs" "$dest/initramfs.cpio.gz"
+
+  id="$(date +%Y%m%d%H%M%S)"
+  /bin/bdb insert updates id="$id" version="$version" state=staged slot="$slot" artifact="$dest" checksum="$checksum" notes="staged to slot $slot" >/dev/null
+  /bin/bdb update boot_slots --where "slot=$slot" version="$version" state=staged kernel="$dest/bzImage" initramfs="$dest/initramfs.cpio.gz" tries=3 notes="staged update $id" >/dev/null
+  echo "update: staged $id version=$version slot=$slot"
+}
+
+commit_update() {
+  local id="$1"
+  local slot
+  slot="$(/bin/bdb dump updates | tail -n +2 | awk -F '\t' -v id="$id" '$1 == id { print $4; exit }')"
+  [ -n "$slot" ] || die "unknown update id: $id"
+  /bin/bdb update updates --where "id=$id" state=pending notes="pending boot slot $slot" >/dev/null
+  /bin/bdb update boot_slots --where "slot=$slot" state=pending tries=3 notes="pending next boot from update $id" >/dev/null
+  write_extlinux_conf "$slot"
+  sync
+  echo "update: committed $id; next boot slot=$slot"
+}
+
+case "${1:-}" in
+  slots)
+    /bin/bdb select boot_slots
+    ;;
+  list)
+    /bin/bdb select updates
+    ;;
+  stage)
+    stage_update "${2:?missing version}" "${3:?missing kernel}" "${4:?missing initramfs}" "${5:---}"
+    ;;
+  commit)
+    commit_update "${2:?missing update id}"
+    ;;
+  mark-good)
+    slot="${2:?missing slot}"
+    /bin/bdb update boot_slots --where "slot=$slot" state=good tries=3 notes="confirmed good" >/dev/null
+    write_extlinux_conf "$slot"
+    echo "update: slot $slot marked good"
+    ;;
+  rollback)
+    slot="$(active_slot)"
+    [ -n "$slot" ] || die "no active/good slot found"
+    write_extlinux_conf "$slot"
+    /bin/bdb update boot_slots --where "slot=$slot" state=active tries=3 notes="rollback target" >/dev/null
+    echo "update: rollback configured to slot=$slot"
+    ;;
+  help|-h|--help|"")
+    usage
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

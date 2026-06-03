@@ -1,0 +1,3 @@
+minibash-linux boot database.
+
+The init process copies this seed database to /var/bdb during early boot.

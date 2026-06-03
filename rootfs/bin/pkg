@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BDB_PATH="${BDB_PATH:-/var/bdb}"
+PKG_ROOT="${PKG_ROOT:-/var/lib/minibash/packages}"
+export BDB_PATH
+
+usage() {
+  cat <<'USAGE'
+usage: pkg list
+       pkg install NAME VERSION TAR_PATH [CHECKSUM]
+       pkg remove NAME
+
+Packages are simple tar archives extracted under /opt/pkg/NAME.
+The package database is the bdb table `packages`.
+USAGE
+}
+
+case "${1:-}" in
+  list)
+    /bin/bdb select packages
+    ;;
+  install)
+    name="${2:?missing name}"
+    version="${3:?missing version}"
+    tarball="${4:?missing tar path}"
+    checksum="${5:---}"
+    [ -f "$tarball" ] || { echo "pkg: missing archive: $tarball" >&2; exit 1; }
+    if [ "$checksum" != "--" ]; then
+      got="$(sha256sum "$tarball" | awk '{print $1}')"
+      [ "$got" = "$checksum" ] || { echo "pkg: checksum mismatch" >&2; exit 1; }
+    fi
+    dest="/opt/pkg/$name"
+    mkdir -p "$dest" "$PKG_ROOT"
+    tar -xf "$tarball" -C "$dest"
+    if /bin/bdb select packages --where "name=$name" >/dev/null 2>&1; then
+      /bin/bdb update packages --where "name=$name" version="$version" state=installed source="$tarball" checksum="$checksum" description="installed package" >/dev/null
+    else
+      /bin/bdb insert packages name="$name" version="$version" state=installed source="$tarball" checksum="$checksum" description="installed package" >/dev/null
+    fi
+    echo "pkg: installed $name $version"
+    ;;
+  remove)
+    name="${2:?missing name}"
+    rm -rf "/opt/pkg/$name"
+    /bin/bdb update packages --where "name=$name" state=removed >/dev/null || true
+    echo "pkg: removed $name"
+    ;;
+  help|-h|--help|"")
+    usage
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
