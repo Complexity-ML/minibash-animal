@@ -23,6 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     findutils \
     flex \
     firmware-misc-nonfree \
+    firmware-iwlwifi \
+    wireless-regdb \
+    wpasupplicant \
+    iw \
+    rfkill \
     fontconfig \
     fonts-dejavu-core \
     foot \

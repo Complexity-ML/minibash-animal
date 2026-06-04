@@ -192,6 +192,10 @@ fn mount_all() {
     // recreate runtime dirs that may now live on the fresh tmpfs mounts
     let _ = fs::create_dir_all("/run/minibash");
     let _ = fs::create_dir_all(LOG_DIR);
+    // The kernel's request_module() (auto-loading e.g. the iwlwifi opmode) execs
+    // this path; default /sbin/modprobe may be absent in our rootfs, so point it
+    // at one we know exists.
+    let _ = fs::write("/proc/sys/kernel/modprobe", "/bin/modprobe");
 }
 
 fn set_hostname() {
@@ -282,6 +286,7 @@ fn load_storage_modules() {
         "xhci-pci",
         "usb-storage",
         "uas",
+        "iwlwifi",
         "simpledrm",
         "drm",
         "drm_kms_helper",

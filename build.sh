@@ -167,6 +167,14 @@ prepare_rootfs() {
   copy_cmd_with_libs uniq
   copy_cmd_with_libs dropbear
   copy_cmd_with_libs dropbearkey
+  copy_cmd_with_libs wpa_supplicant
+  copy_cmd_with_libs wpa_cli
+  copy_cmd_with_libs iw
+  copy_cmd_with_libs rfkill
+  # WiFi firmware + regulatory db (for iwlwifi); always shipped so SSH-over-WiFi
+  # works on console boots too, not just the desktop.
+  copy_deb_package_files firmware-iwlwifi
+  copy_deb_package_files wireless-regdb
   copy_cmd_with_libs extlinux
   copy_cmd_with_libs syslinux
   copy_cmd_with_libs insmod
@@ -276,6 +284,11 @@ prepare_rootfs() {
   fi
   if [ -x "$ROOTFS_WORK/usr/sbin/modprobe" ]; then
     ln -sf /usr/sbin/modprobe "$ROOTFS_WORK/bin/modprobe"
+    # The kernel's request_module() (e.g. iwlwifi auto-loading its iwlmvm/iwldvm
+    # opmode) execs /sbin/modprobe by default; without it, auto-loaded modules
+    # silently never load (→ driver present but no wlan0).
+    mkdir -p "$ROOTFS_WORK/sbin"
+    ln -sf /usr/sbin/modprobe "$ROOTFS_WORK/sbin/modprobe"
   fi
   if [ -x "$ROOTFS_WORK/usr/bin/weston" ]; then
     ln -sf /usr/bin/weston "$ROOTFS_WORK/bin/weston"
@@ -316,6 +329,14 @@ prepare_rootfs() {
            "$ROOTFS_WORK/bin/pkg" "$ROOTFS_WORK/bin/minibash-update" \
            "$ROOTFS_WORK/bin/desktop" "$ROOTFS_WORK/bin/desktop-install" \
            "$ROOTFS_WORK"/services/*.sh
+  # diagnostics + helpers that ship as plain (non-exec) files in the repo
+  chmod +x "$ROOTFS_WORK/bin/gpu" "$ROOTFS_WORK/bin/wifi" \
+           "$ROOTFS_WORK/usr/share/udhcpc/default.script" 2>/dev/null || true
+  # dropbear is strict about key file permissions
+  if [ -d "$ROOTFS_WORK/root/.ssh" ]; then
+    chmod 700 "$ROOTFS_WORK/root/.ssh"
+    chmod 600 "$ROOTFS_WORK/root/.ssh/authorized_keys" 2>/dev/null || true
+  fi
 }
 
 pack_initramfs() {

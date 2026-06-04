@@ -7,3 +7,4 @@ rust/**/Cargo.lock
 *.cpio.gz
 *.tar.gz
 .DS_Store
+rootfs/etc/wpa_supplicant.conf

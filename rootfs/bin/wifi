@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# One-shot WiFi status for the console (so debugging needs only `wifi`).
+export PATH=/bin:/usr/bin:/sbin:/usr/sbin
+IF="${1:-wlan0}"
+
+echo "== interface =="
+busybox ip addr show "$IF" 2>/dev/null || echo "no $IF"
+echo "== rfkill (blocked=yes => radio off; hard=Fn/switch) =="
+rfkill list 2>/dev/null || echo "rfkill tool/no devices"
+echo "== iwlwifi modules =="
+grep -E '^iwlwifi|^iwlmvm|^iwldvm|^cfg80211|^mac80211' /proc/modules 2>/dev/null || echo "iwlwifi not loaded"
+echo "== association (iw) =="
+iw dev "$IF" link 2>/dev/null || echo "iw/no link"
+echo "== wpa_supplicant =="
+if ps 2>/dev/null | grep -q 'wpa_supplican[t]'; then echo "running"; else echo "NOT running"; fi
+echo "== default route =="
+busybox ip route 2>/dev/null | grep default || echo "no default route"
+echo "== /var/log/wifi.log (service trace, tail) =="
+tail -n 12 /var/log/wifi.log 2>/dev/null || echo "(none — wifi service not running?)"
+echo "== /var/log/wpa_supplicant.log (tail) =="
+tail -n 15 /var/log/wpa_supplicant.log 2>/dev/null || echo "(empty / none)"

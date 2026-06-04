@@ -1,0 +1,23 @@
+#!/bin/sh
+# Minimal udhcpc handler for minibash (busybox ifconfig/route, no iproute2 dep).
+[ -n "$1" ] || { echo "udhcpc: no action" >&2; exit 1; }
+
+case "$1" in
+  deconfig)
+    busybox ifconfig "$interface" 0.0.0.0 2>/dev/null
+    ;;
+  bound|renew)
+    busybox ifconfig "$interface" "$ip" netmask "${subnet:-255.255.255.0}"
+    if [ -n "$router" ]; then
+      busybox route del default 2>/dev/null
+      for r in $router; do
+        busybox route add default gw "$r" dev "$interface" 2>/dev/null && break
+      done
+    fi
+    : > /etc/resolv.conf
+    [ -n "$domain" ] && echo "search $domain" >> /etc/resolv.conf
+    for d in $dns; do echo "nameserver $d" >> /etc/resolv.conf; done
+    echo "udhcpc: $interface bound $ip (gw ${router:-none})"
+    ;;
+esac
+exit 0
