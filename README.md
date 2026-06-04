@@ -99,20 +99,19 @@ bashsvc enable sshd
 
 ## Desktop minimal
 
-La clé USB garde un initramfs mini et stable. Le runtime graphique Weston/foot
-est transporté à côté, dans une deuxième partition ext2 `MINIBASHDATA`, sous la
-forme d'un payload `minibash-desktop/desktop-root.tar.gz`.
+La clé USB garde un boot mini stable par défaut. Le runtime graphique Weston/foot
+est transporté dans un deuxième initramfs `desktop.cpio.gz`, chargé uniquement
+si l'entrée GRUB `minibash-linux desktop lab` est choisie.
 
-Pour tester le desktop après boot :
+Pour tester le desktop, choisir dans GRUB :
 
-```bash
-desktop-install
-bashsvc enable desktopd
+```text
+minibash-linux desktop lab
 ```
 
-`desktopd` tente aussi `desktop-install --auto` si Weston n'est pas encore
-présent. Le dashboard `/bin/desktop` reste utilisable dans une TTY même sans
-interface graphique : état services, logs récents, shell interactif.
+Le boot par défaut reste `minibash-linux live`. Le dashboard `/bin/desktop`
+reste utilisable dans une TTY même sans interface graphique : état services,
+logs récents, shell interactif.
 
 ## Installation disque et bootloader
 

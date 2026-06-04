@@ -11,6 +11,7 @@ EFI_SIZE_MB="${EFI_SIZE_MB:-96}"
 PART_OFFSET_BYTES="${PART_OFFSET_BYTES:-1048576}"
 DESKTOP_PAYLOAD_TAR="${DESKTOP_PAYLOAD_TAR:-}"
 DESKTOP_PAYLOAD_MANIFEST="${DESKTOP_PAYLOAD_MANIFEST:-}"
+DESKTOP_INITRAMFS_IMAGE="${DESKTOP_INITRAMFS_IMAGE:-}"
 
 log() {
   printf '[minibash:usb] %s\n' "$*"
@@ -85,10 +86,48 @@ search --no-floppy --label MINIBASH --set=root
 
 menuentry "minibash-linux live" {
   search --no-floppy --label MINIBASH --set=root
-  echo "booting minibash-linux"
-  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root
+  echo "booting minibash-linux live AZERTY"
+  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd /initrd.gz
 }
+
+menuentry "minibash-linux live qwerty" {
+  search --no-floppy --label MINIBASH --set=root
+  echo "booting minibash-linux live QWERTY"
+  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
+  initrd /initrd.gz
+}
+CFG
+  if [ -n "$DESKTOP_INITRAMFS_IMAGE" ]; then
+    [ -f "$DESKTOP_INITRAMFS_IMAGE" ] || {
+      echo "missing desktop initramfs: $DESKTOP_INITRAMFS_IMAGE" >&2
+      exit 1
+    }
+    cat >> "$grub_cfg" <<'CFG'
+
+menuentry "minibash-linux desktop lab" {
+  search --no-floppy --label MINIBASH --set=root
+  echo "booting minibash-linux desktop lab AZERTY"
+  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
+  initrd /initrd.gz /desktop.cpio.gz
+}
+
+menuentry "minibash-linux desktop debug shell" {
+  search --no-floppy --label MINIBASH --set=root
+  echo "booting minibash-linux desktop debug shell AZERTY"
+  linux /kernel console=tty0 init=/init panic=0 loglevel=7 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr minibash.desktop=debug
+  initrd /initrd.gz /desktop.cpio.gz
+}
+
+menuentry "minibash-linux desktop lab qwerty" {
+  search --no-floppy --label MINIBASH --set=root
+  echo "booting minibash-linux desktop lab QWERTY"
+  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
+  initrd /initrd.gz /desktop.cpio.gz
+}
+CFG
+  fi
+  cat >> "$grub_cfg" <<'CFG'
 
 menuentry "minibash-linux live serial debug" {
   search --no-floppy --label MINIBASH --set=root
@@ -111,6 +150,9 @@ CFG
   rm -f "$bootefi"
   mcopy -i "$efi_img" "$KERNEL_IMAGE" ::/kernel
   mcopy -i "$efi_img" "$INITRAMFS_IMAGE" ::/initrd.gz
+  if [ -n "$DESKTOP_INITRAMFS_IMAGE" ]; then
+    mcopy -i "$efi_img" "$DESKTOP_INITRAMFS_IMAGE" ::/desktop.cpio.gz
+  fi
   dd if="$efi_img" of="$USB_IMG" bs=512 seek=2048 conv=notrunc status=none
 
   if [ -n "$DESKTOP_PAYLOAD_TAR" ]; then

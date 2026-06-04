@@ -3,6 +3,7 @@ set -euo pipefail
 
 OUT="${1:-/work/minibash-linux/out/debian-vmlinuz}"
 MODULES_OUT="${2:-$(dirname "$OUT")/debian-modules}"
+MODULE_PROFILE="${MODULE_PROFILE:-minimal}"
 
 apt-get update >/dev/null
 pkg="$(apt-cache depends linux-image-amd64 | awk '/Depends: linux-image-[0-9]/ { print $2; exit }')"
@@ -33,19 +34,23 @@ version="$(basename "$kernel" | sed 's/^vmlinuz-//')"
 module_root="$tmp/root/lib/modules/$version"
 if [ -d "$module_root" ]; then
   mkdir -p "$MODULES_OUT/lib/modules/$version"
-  for rel in \
-    kernel/drivers/scsi/scsi_mod.ko \
-    kernel/drivers/scsi/sd_mod.ko \
-    kernel/drivers/usb/core/usbcore.ko \
-    kernel/drivers/usb/host/xhci-hcd.ko \
-    kernel/drivers/usb/host/xhci-pci.ko \
-    kernel/drivers/usb/storage/usb-storage.ko \
-    kernel/drivers/usb/storage/uas.ko; do
-    if [ -f "$module_root/$rel" ]; then
-      mkdir -p "$MODULES_OUT/lib/modules/$version/$(dirname "$rel")"
-      cp "$module_root/$rel" "$MODULES_OUT/lib/modules/$version/$rel"
-    fi
-  done
+  if [ "$MODULE_PROFILE" = "desktop" ] || [ "$MODULE_PROFILE" = "full" ]; then
+    rsync -a "$module_root"/ "$MODULES_OUT/lib/modules/$version"/
+  else
+    for rel in \
+      kernel/drivers/scsi/scsi_mod.ko \
+      kernel/drivers/scsi/sd_mod.ko \
+      kernel/drivers/usb/core/usbcore.ko \
+      kernel/drivers/usb/host/xhci-hcd.ko \
+      kernel/drivers/usb/host/xhci-pci.ko \
+      kernel/drivers/usb/storage/usb-storage.ko \
+      kernel/drivers/usb/storage/uas.ko; do
+      if [ -f "$module_root/$rel" ]; then
+        mkdir -p "$MODULES_OUT/lib/modules/$version/$(dirname "$rel")"
+        cp "$module_root/$rel" "$MODULES_OUT/lib/modules/$version/$rel"
+      fi
+    done
+  fi
   find "$MODULES_OUT/lib/modules/$version" -type f | sort > "$MODULES_OUT/MODULES"
 fi
 printf '[minibash:kernel] debian kernel: %s -> %s\n' "$pkg" "$OUT"

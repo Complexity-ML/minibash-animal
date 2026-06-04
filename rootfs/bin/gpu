@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -u
+
+echo "== devices =="
+ls -l /dev/dri 2>/dev/null || echo "no /dev/dri"
+ls -l /dev/fb* 2>/dev/null || echo "no /dev/fb"
+
+echo
+echo "== modules =="
+grep -E '(^drm|^drm_kms_helper|^i915|^amdgpu|^nouveau|^simpledrm)' /proc/modules 2>/dev/null || echo "no gpu modules loaded"
+
+echo
+echo "== kernel log =="
+dmesg 2>/dev/null | grep -Ei 'drm|i915|amdgpu|nouveau|simpledrm|fb0|firmware' || echo "no gpu log lines"
+
+echo
+echo "== weston =="
+tail -80 /var/log/weston.log 2>/dev/null || echo "no /var/log/weston.log"

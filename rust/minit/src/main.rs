@@ -175,6 +175,18 @@ fn mount_all() {
     do_mount("proc", "/proc", "proc");
     do_mount("sysfs", "/sys", "sysfs");
     do_mount("devtmpfs", "/dev", "devtmpfs");
+    // devpts is required for pseudo-terminals (foot/any terminal emulator):
+    // without it PTY allocation fails with "failed to open PTY".
+    do_mount("devpts", "/dev/pts", "devpts");
+    // /dev/shm (POSIX shared memory) is required by Wayland/Mesa/foot for their
+    // shared buffers and keymap fds; without it sway fails with
+    // "error marshalling arg for keymap: dup failed". Needs 1777 so the
+    // non-root desktop user can create shm files.
+    do_mount("tmpfs", "/dev/shm", "tmpfs");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions("/dev/shm", fs::Permissions::from_mode(0o1777));
+    }
     do_mount("tmpfs", "/run", "tmpfs");
     do_mount("tmpfs", "/tmp", "tmpfs");
     // recreate runtime dirs that may now live on the fresh tmpfs mounts
@@ -217,6 +229,42 @@ fn network_up() {
     }
 }
 
+fn apply_keymap() {
+    let keymap = match kernel_arg("minibash.keymap") {
+        Some(value) => value,
+        None => return,
+    };
+    let keymap = keymap.trim();
+    if keymap.is_empty() || keymap == "us" || keymap == "qwerty" {
+        log(&format!("keyboard keymap: {keymap}"));
+        return;
+    }
+
+    let map_path = match keymap {
+        "fr" | "azerty" | "fr-azerty" => "/etc/keymaps/fr.bmap",
+        other => {
+            log(&format!("unknown keyboard keymap '{other}', keeping kernel default"));
+            return;
+        }
+    };
+
+    match fs::File::open(map_path) {
+        Ok(file) => {
+            let status = Command::new("/bin/loadkmap")
+                .stdin(Stdio::from(file))
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            if status.map(|s| s.success()).unwrap_or(false) {
+                log(&format!("keyboard keymap loaded: {keymap}"));
+            } else {
+                log(&format!("keyboard keymap failed: {keymap}"));
+            }
+        }
+        Err(e) => log(&format!("keyboard keymap missing {map_path}: {e}")),
+    }
+}
+
 fn load_storage_modules() {
     let module_base = match fs::read_dir("/lib/modules") {
         Ok(mut entries) => match entries.find_map(|e| e.ok()) {
@@ -226,6 +274,26 @@ fn load_storage_modules() {
         Err(_) => return,
     };
     let base = module_base.to_string_lossy().to_string();
+    for module in [
+        "scsi_mod",
+        "sd_mod",
+        "usbcore",
+        "xhci-hcd",
+        "xhci-pci",
+        "usb-storage",
+        "uas",
+        "simpledrm",
+        "drm",
+        "drm_kms_helper",
+        "virtio_gpu",
+        "i915",
+        "amdgpu",
+        "nouveau",
+        "usbhid",
+        "hid_generic",
+    ] {
+        let _ = run_quiet(&["/bin/modprobe", module]);
+    }
     for rel in [
         "kernel/drivers/scsi/scsi_mod.ko",
         "kernel/drivers/scsi/sd_mod.ko",
@@ -286,6 +354,13 @@ fn console_tty() -> String {
     }
 
     "/dev/tty1".to_string()
+}
+
+fn desktop_autostart_disabled() -> bool {
+    matches!(
+        kernel_arg("minibash.desktop").as_deref(),
+        Some("off") | Some("debug") | Some("shell")
+    )
 }
 
 fn try_mount(dev: &str, target: &str, fstype: &str) -> bool {
@@ -499,11 +574,16 @@ fn read_services() -> Vec<Service> {
             Some(v) => v,
             None => continue,
         };
+        let desired = if f[0] == "desktopd" && desktop_autostart_disabled() {
+            "down".to_string()
+        } else {
+            f[4].clone()
+        };
         out.push(Service {
             name: f[0].clone(),
             command: f[1].clone(),
             restart: f[3] == "true",
-            desired: f[4].clone(),
+            desired,
         });
     }
     out
@@ -870,6 +950,7 @@ fn do_shutdown(mode: u8) {
 fn main() {
     log("booting minibash linux");
     mount_all();
+    apply_keymap();
     load_storage_modules();
     set_hostname();
     network_up();

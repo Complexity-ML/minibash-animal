@@ -16,11 +16,10 @@ docker run --rm --platform linux/amd64 -v "$(cd .. && pwd)":/work minibash-linux
     ISO_NAME=minibash-linux.iso \
     bash /work/minibash-linux/build-iso.sh
 
-  bash /work/minibash-linux/build-desktop-payload.sh
+  bash /work/minibash-linux/build-desktop-initrd.sh
 
   KERNEL_IMAGE=/work/minibash-linux/out/debian-vmlinuz \
-    DESKTOP_PAYLOAD_TAR=/work/minibash-linux/out/minibash-desktop-root.tar.gz \
-    DESKTOP_PAYLOAD_MANIFEST=/work/minibash-linux/out/minibash-desktop-MANIFEST \
+    DESKTOP_INITRAMFS_IMAGE=/work/minibash-linux/out/minibash-desktop.cpio.gz \
     USB_IMG=/work/minibash-linux/out/minibash-linux-usb.img \
     bash /work/minibash-linux/build-usb.sh
 '

@@ -1,2 +1,5 @@
 root:x:0:
 minibash:x:1000:
+video:x:44:minibash
+input:x:101:minibash
+render:x:104:minibash

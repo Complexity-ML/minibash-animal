@@ -100,9 +100,19 @@ install_busybox() {
   for applet in sh ls ps kill dmesg true false echo pwd clear rm mv rmdir \
                 nc ip ifconfig route hostname cat date ash vi umount \
                 free uptime top df whoami id groups cut wc syslogd logger \
-                mke2fs sync tar sha256sum chmod chown ln dd; do
+                mke2fs sync tar sha256sum chmod chown ln dd loadkmap chvt openvt; do
     ln -sf /bin/busybox "$ROOTFS_WORK/bin/$applet"
   done
+}
+
+install_keymaps() {
+  mkdir -p "$ROOTFS_WORK/etc/keymaps"
+  if type -P loadkeys >/dev/null 2>&1; then
+    log "generating AZERTY console keymap"
+    loadkeys -b fr > "$ROOTFS_WORK/etc/keymaps/fr.bmap"
+  else
+    log "loadkeys missing on builder; AZERTY keymap skipped"
+  fi
 }
 
 build_rust_helper() {
@@ -134,6 +144,7 @@ prepare_rootfs() {
   mknod -m 666 "$ROOTFS_WORK/dev/tty" c 5 0
 
   install_busybox
+  install_keymaps
   copy_cmd_with_libs bash
   copy_cmd_with_libs awk
   copy_cmd_with_libs base64
@@ -165,15 +176,75 @@ prepare_rootfs() {
     copy_cmd_with_libs weston
     copy_cmd_with_libs foot
     copy_cmd_with_libs weston-terminal
+    copy_cmd_with_libs sway
+    copy_cmd_with_libs seatd
+    copy_cmd_with_libs setpriv
 
     for pkg in \
       weston libweston-10-0 \
       foot foot-terminfo \
       libwayland-server0 libwayland-client0 libwayland-cursor0 libwayland-egl1 \
       libinput10 libseat1 libxkbcommon0 libpixman-1-0 \
+      xkb-data \
       libdrm2 libdrm-intel1 libdrm-amdgpu1 libdrm-nouveau2 libdrm-radeon1 \
-      libgbm1 libegl1 libgles2 libgl1 mesa-utils; do
+      libgbm1 libegl1 libgles2 libgl1 mesa-utils \
+      libgl1-mesa-dri libva2 libva-drm2 mesa-va-drivers \
+      libegl-mesa0 libglx-mesa0 libglapi-mesa libgbm1 \
+      udev libudev1 \
+      seatd sway libseat1 libwlroots10 \
+      fontconfig fonts-dejavu-core; do
       copy_deb_package_files "$pkg"
+    done
+
+    # The generated UTF-8 locale archive (from locale-gen in the Docker image) is
+    # not part of any package, so copy it explicitly: foot needs a real UTF-8
+    # locale or it aborts with "set locale failed".
+    if [ -f /usr/lib/locale/locale-archive ]; then
+      mkdir -p "$ROOTFS_WORK/usr/lib/locale"
+      cp -a /usr/lib/locale/locale-archive "$ROOTFS_WORK/usr/lib/locale/"
+    fi
+
+    # Mesa DRI/VA drivers AND weston backends/shells are loaded via dlopen(), so
+    # ldd on the weston binary never sees them and their NEEDED libs (libLLVM,
+    # libzstd, libsensors, libdrm, libva for the DRI drivers; libdbus-1 for the
+    # drm-backend/logind launcher; etc.) are otherwise missing. Resolve the deps
+    # of every dlopen'd module so the runtime closure is complete.
+    for drvdir in \
+      "$ROOTFS_WORK"/usr/lib/*/dri \
+      "$ROOTFS_WORK"/usr/lib/dri \
+      "$ROOTFS_WORK"/usr/lib/*/libweston-* \
+      "$ROOTFS_WORK"/usr/lib/*/weston \
+      "$ROOTFS_WORK"/usr/lib/libweston-* \
+      "$ROOTFS_WORK"/usr/lib/weston; do
+      [ -d "$drvdir" ] || continue
+      for drv in "$drvdir"/*.so*; do
+        [ -e "$drv" ] || continue
+        copy_libs_for_binary "$drv"
+      done
+    done
+
+    # GLVND vendor implementations are dlopen'd via egl_vendor.d / glx, so their
+    # NEEDED libs (libxcb-*, libX11-xcb, libwayland-*, libexpat, ...) are invisible
+    # to ldd on weston. Resolve them so EGL can actually initialise a display.
+    for vendor in \
+      "$ROOTFS_WORK"/usr/lib/*/libEGL_mesa.so* \
+      "$ROOTFS_WORK"/usr/lib/*/libGLX_mesa.so* \
+      "$ROOTFS_WORK"/usr/lib/libEGL_mesa.so* \
+      "$ROOTFS_WORK"/usr/lib/libGLX_mesa.so*; do
+      [ -e "$vendor" ] || continue
+      copy_libs_for_binary "$vendor"
+    done
+
+    # udevd/udevadm provide the device tags (ID_INPUT/ID_SEAT) that libinput and
+    # libseat need; copy_deb_package_files brought the binaries but not their
+    # NEEDED libs (libkmod, libacl, libblkid, libcap, ...). Resolve them.
+    for ubin in \
+      "$ROOTFS_WORK"/usr/lib/systemd/systemd-udevd \
+      "$ROOTFS_WORK"/lib/systemd/systemd-udevd \
+      "$ROOTFS_WORK"/usr/bin/udevadm \
+      "$ROOTFS_WORK"/bin/udevadm; do
+      [ -e "$ubin" ] || continue
+      copy_libs_for_binary "$ubin"
     done
   else
     log "desktop runtime skipped (INCLUDE_DESKTOP=0)"
@@ -227,6 +298,13 @@ prepare_rootfs() {
     log "copying kernel modules from $KERNEL_MODULES_DIR"
     mkdir -p "$ROOTFS_WORK/lib/modules"
     cp -a "$KERNEL_MODULES_DIR/lib/modules/." "$ROOTFS_WORK/lib/modules/"
+    copy_deb_package_files firmware-misc-nonfree
+    for version_dir in "$ROOTFS_WORK"/lib/modules/*; do
+      [ -d "$version_dir" ] || continue
+      version="$(basename "$version_dir")"
+      log "indexing kernel modules for $version"
+      depmod -b "$ROOTFS_WORK" "$version"
+    done
   else
     log "kernel modules skipped (missing $KERNEL_MODULES_DIR)"
   fi

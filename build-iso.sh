@@ -64,12 +64,12 @@ DEFAULT live
 LABEL live
   KERNEL /kernel
   INITRD /initrd.gz
-  APPEND console=tty0 init=/init panic=0 quiet loglevel=3
+  APPEND console=tty0 init=/init panic=0 quiet loglevel=3 minibash.keymap=fr
 
 LABEL autologin
   KERNEL /kernel
   INITRD /initrd.gz
-  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.autologin=root
+  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.autologin=root minibash.keymap=us
 CFG
 
   grub_cfg="/tmp/minibash-grub.cfg"
@@ -95,7 +95,14 @@ set gfxpayload=keep
 menuentry "minibash-linux live" {
   search --no-floppy --file --set=root /kernel
   echo "boot root: $root"
-  linux ($root)/kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root
+  linux ($root)/kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
+  initrd ($root)/initrd.gz
+}
+
+menuentry "minibash-linux live qwerty" {
+  search --no-floppy --file --set=root /kernel
+  echo "boot root: $root"
+  linux ($root)/kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
   initrd ($root)/initrd.gz
 }
 
@@ -104,7 +111,7 @@ menuentry "minibash-linux live serial debug" {
   terminal_output serial
   search --no-floppy --file --set=root /kernel
   echo "boot root: $root"
-  linux ($root)/kernel console=ttyS0 init=/init panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root
+  linux ($root)/kernel console=ttyS0 init=/init panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root minibash.keymap=us
   initrd ($root)/initrd.gz
 }
 CFG
