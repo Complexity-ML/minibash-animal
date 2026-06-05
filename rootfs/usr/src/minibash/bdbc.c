@@ -298,6 +298,15 @@ static char *data_path(const char *table) {
   return xasprintf("%s/data.tsv", table_dir(table));
 }
 
+static char *native_data_path(const char *table) {
+  return xasprintf("%s/data.bdb", table_dir(table));
+}
+
+static bool exists_file(const char *p) {
+  struct stat st;
+  return stat(p, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 static void write_u32(FILE *f, uint32_t v) {
   unsigned char b[4] = {
     (unsigned char)(v & 255),
@@ -313,6 +322,27 @@ static void write_str(FILE *f, const char *s) {
   if (n > UINT32_MAX) die("field too large");
   write_u32(f, (uint32_t)n);
   if (n && fwrite(s, 1, n, f) != n) die("write failed");
+}
+
+static uint32_t read_u32(FILE *f) {
+  unsigned char b[4];
+  if (fread(b, 1, sizeof(b), f) != sizeof(b)) die("native read failed");
+  return (uint32_t)b[0] | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
+}
+
+static char *read_str(FILE *f) {
+  uint32_t n = read_u32(f);
+  char *s = calloc((size_t)n + 1, 1);
+  if (!s) die("out of memory");
+  if (n && fread(s, 1, n, f) != n) die("native read failed");
+  return s;
+}
+
+static void read_magic(FILE *f, const char *path) {
+  char magic[4];
+  if (fread(magic, 1, 4, f) != 4 || memcmp(magic, BDB_MAGIC, 4) != 0) {
+    die("format natif invalide: %s", path);
+  }
 }
 
 static void pack_schema_file(const char *table, const Schema *s) {
@@ -488,6 +518,36 @@ static void print_dump(const char *table, const char *where_col, const char *whe
     fputs(s.cols[i].name, stdout);
   }
   putchar('\n');
+
+  char *native = native_data_path(table);
+  if (exists_file(native)) {
+    FILE *f = fopen(native, "rb");
+    if (!f) die("open %s: %s", native, strerror(errno));
+    read_magic(f, native);
+    uint32_t version = read_u32(f);
+    uint32_t cols = read_u32(f);
+    uint32_t rows = read_u32(f);
+    if (version != 1 || cols != s.len) die("format natif incompatible: %s", native);
+    for (uint32_t r = 0; r < rows; r++) {
+      char **row = calloc(s.len, sizeof(char *));
+      if (!row) die("out of memory");
+      for (size_t i = 0; i < s.len; i++) row[i] = read_str(f);
+      if (row_matches(row, &s, where_col, where_val)) {
+        for (size_t i = 0; i < s.len; i++) {
+          if (i) putchar('\t');
+          fputs(row[i], stdout);
+        }
+        putchar('\n');
+      }
+      free_row(row, s.len);
+    }
+    fclose(f);
+    free(native);
+    free_schema(&s);
+    return;
+  }
+  free(native);
+
   char *p = data_path(table);
   FILE *f = fopen(p, "r");
   if (!f) die("open %s: %s", p, strerror(errno));
