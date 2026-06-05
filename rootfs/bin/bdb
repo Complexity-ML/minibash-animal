@@ -9,7 +9,7 @@ ENGINE="${BDB_ENGINE:-auto}"
 
 if [ "$ENGINE" != "bash" ] && [ -x /bin/bdbc ]; then
   case "${1:-}" in
-    init|create|tables|schema|insert|dump|update|delete|drop|version|--version)
+    init|create|tables|schema|insert|select|dump|update|delete|drop|pack|version|--version)
       exec /bin/bdbc "$@"
       ;;
   esac

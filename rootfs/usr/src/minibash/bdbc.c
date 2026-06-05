@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 #include <unistd.h>
 
 #define VERSION "0.2.0-c"
+#define BDB_MAGIC "BDB1"
 
 typedef struct {
   char *name;
@@ -296,6 +298,90 @@ static char *data_path(const char *table) {
   return xasprintf("%s/data.tsv", table_dir(table));
 }
 
+static void write_u32(FILE *f, uint32_t v) {
+  unsigned char b[4] = {
+    (unsigned char)(v & 255),
+    (unsigned char)((v >> 8) & 255),
+    (unsigned char)((v >> 16) & 255),
+    (unsigned char)((v >> 24) & 255)
+  };
+  if (fwrite(b, 1, sizeof(b), f) != sizeof(b)) die("write failed");
+}
+
+static void write_str(FILE *f, const char *s) {
+  size_t n = strlen(s);
+  if (n > UINT32_MAX) die("field too large");
+  write_u32(f, (uint32_t)n);
+  if (n && fwrite(s, 1, n, f) != n) die("write failed");
+}
+
+static void pack_schema_file(const char *table, const Schema *s) {
+  char *td = table_dir(table);
+  char *path = xasprintf("%s/schema.bdb", td);
+  char *tmp = xasprintf("%s/.schema.bdb.tmp", td);
+  FILE *f = fopen(tmp, "wb");
+  if (!f) die("open %s: %s", tmp, strerror(errno));
+
+  if (fwrite(BDB_MAGIC, 1, 4, f) != 4) die("write failed");
+  write_u32(f, 1);
+  write_u32(f, (uint32_t)s->len);
+  write_u32(f, s->pk_idx < 0 ? UINT32_MAX : (uint32_t)s->pk_idx);
+  for (size_t i = 0; i < s->len; i++) {
+    write_str(f, s->cols[i].name);
+    write_str(f, s->cols[i].type);
+    write_u32(f, s->cols[i].pk ? 1 : 0);
+  }
+  fclose(f);
+  if (rename(tmp, path) != 0) die("rename %s: %s", path, strerror(errno));
+  free(tmp);
+  free(path);
+  free(td);
+}
+
+static void pack_data_file(const char *table, const Schema *s) {
+  char *td = table_dir(table);
+  char *src = data_path(table);
+  char *path = xasprintf("%s/data.bdb", td);
+  char *tmp = xasprintf("%s/.data.bdb.tmp", td);
+  FILE *in = fopen(src, "r");
+  FILE *out = fopen(tmp, "wb");
+  if (!in || !out) die("pack open: %s", strerror(errno));
+
+  if (fwrite(BDB_MAGIC, 1, 4, out) != 4) die("write failed");
+  write_u32(out, 1);
+  write_u32(out, (uint32_t)s->len);
+  long row_count_pos = ftell(out);
+  write_u32(out, 0);
+
+  char *line = NULL;
+  size_t cap = 0, rows = 0;
+  while (getline(&line, &cap, in) != -1) {
+    if (line[0] == '\n' || line[0] == 0) continue;
+    char **row = decode_row(line, s);
+    for (size_t i = 0; i < s->len; i++) write_str(out, row[i]);
+    free_row(row, s->len);
+    rows++;
+  }
+  free(line);
+  fseek(out, row_count_pos, SEEK_SET);
+  write_u32(out, (uint32_t)rows);
+  fclose(in);
+  fclose(out);
+  if (rename(tmp, path) != 0) die("rename %s: %s", path, strerror(errno));
+  free(tmp);
+  free(path);
+  free(src);
+  free(td);
+}
+
+static void pack_table(const char *table) {
+  require_table(table);
+  Schema s = load_schema(table);
+  pack_schema_file(table, &s);
+  pack_data_file(table, &s);
+  free_schema(&s);
+}
+
 static void lock_db(void) {
   char *lock = xasprintf("%s/.lock", db_dir());
   for (int i = 0; i < 50; i++) {
@@ -388,6 +474,7 @@ static void cmd_create(int argc, char **argv) {
   }
   fclose(sf);
   fclose(df);
+  pack_table(table);
   printf("table creee: %s\n", table);
   free(schema);
   free(data);
@@ -464,6 +551,7 @@ static void cmd_insert(int argc, char **argv) {
   }
   fputc('\n', f);
   fclose(f);
+  pack_table(argv[0]);
   printf("ligne inseree: %s\n", argv[0]);
   free(p);
   free_assigns(a, an);
@@ -511,6 +599,7 @@ static void cmd_update(int argc, char **argv) {
   fclose(in);
   fclose(out);
   if (rename(tmp, p) != 0) die("rename: %s", strerror(errno));
+  pack_table(argv[0]);
   printf("lignes modifiees: %zu\n", count);
   free(tmp);
   free(p);
@@ -544,6 +633,7 @@ static void cmd_delete(int argc, char **argv) {
   fclose(in);
   fclose(out);
   if (rename(tmp, p) != 0) die("rename: %s", strerror(errno));
+  pack_table(argv[0]);
   printf("lignes supprimees: %zu\n", count);
   free(tmp);
   free(p);
@@ -567,9 +657,35 @@ static void cmd_drop(const char *table) {
   free(td);
 }
 
+static void cmd_pack(int argc, char **argv) {
+  require_db();
+  if (argc > 1) die("usage: bdb pack [TABLE|--all]");
+  if (argc == 1 && strcmp(argv[0], "--all") != 0) {
+    pack_table(argv[0]);
+    printf("table packed: %s\n", argv[0]);
+    return;
+  }
+
+  char *p = xasprintf("%s/tables", db_dir());
+  DIR *d = opendir(p);
+  if (!d) die("opendir %s: %s", p, strerror(errno));
+  struct dirent *e;
+  while ((e = readdir(d))) {
+    if (e->d_name[0] == '.') continue;
+    char *td = xasprintf("%s/%s", p, e->d_name);
+    if (exists_dir(td)) {
+      pack_table(e->d_name);
+      printf("table packed: %s\n", e->d_name);
+    }
+    free(td);
+  }
+  closedir(d);
+  free(p);
+}
+
 static void usage(void) {
   puts("bdbc - moteur C pour bdb");
-  puts("usage: bdb init|create|tables|schema|insert|select|dump|update|delete|drop ...");
+  puts("usage: bdb init|create|tables|schema|insert|select|dump|update|delete|drop|pack ...");
 }
 
 int main(int argc, char **argv) {
@@ -583,7 +699,8 @@ int main(int argc, char **argv) {
     return 0;
   }
   bool writes = !strcmp(cmd, "init") || !strcmp(cmd, "create") || !strcmp(cmd, "insert") ||
-                !strcmp(cmd, "update") || !strcmp(cmd, "delete") || !strcmp(cmd, "drop");
+                !strcmp(cmd, "update") || !strcmp(cmd, "delete") || !strcmp(cmd, "drop") ||
+                !strcmp(cmd, "pack");
   if (writes) lock_db();
   if (strcmp(cmd, "init") == 0) cmd_init(argc - 2, argv + 2);
   else if (strcmp(cmd, "create") == 0) cmd_create(argc - 2, argv + 2);
@@ -605,6 +722,9 @@ int main(int argc, char **argv) {
   else if (strcmp(cmd, "drop") == 0) {
     if (argc != 3) die("usage: bdb drop TABLE");
     cmd_drop(argv[2]);
+  }
+  else if (strcmp(cmd, "pack") == 0) {
+    cmd_pack(argc - 2, argv + 2);
   } else {
     usage();
     if (writes) unlock_db();
