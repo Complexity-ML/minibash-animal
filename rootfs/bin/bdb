@@ -4,7 +4,7 @@ set -euo pipefail
 
 if [ -x /bin/bdbc ]; then
   case "${1:-}" in
-    init|create|tables|schema|insert|select|dump|update|delete|drop|check|version|--version)
+    init|create|tables|schema|insert|select|dump|update|delete|drop|check|transact|version|--version)
       exec /bin/bdbc "$@"
       ;;
   esac

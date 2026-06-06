@@ -15,7 +15,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define VERSION "0.4.0-native"
+#define VERSION "0.5.0-native"
 #define BDB_MAGIC "BDB1"
 #define WAL_MAGIC "BWL1"
 
@@ -387,8 +387,7 @@ static void free_rowset(RowSet *rs, size_t cols) {
   free(rs->rows);
 }
 
-static RowSet read_rows(const char *table, const Schema *s) {
-  char *path = data_path(table);
+static RowSet read_rows_path(const char *path, const Schema *s) {
   FILE *f = fopen(path, "rb");
   if (!f) die("data natif introuvable: %s", path);
   read_magic(f, path);
@@ -404,6 +403,12 @@ static RowSet read_rows(const char *table, const Schema *s) {
   }
   if (fgetc(f) != EOF) die("donnees en trop dans la table: %s", path);
   fclose(f);
+  return rs;
+}
+
+static RowSet read_rows(const char *table, const Schema *s) {
+  char *path = data_path(table);
+  RowSet rs = read_rows_path(path, s);
   free(path);
   return rs;
 }
@@ -574,6 +579,17 @@ static void validate_table(const char *table) {
   require_unique_pk(table, &s, &rs);
   free_rowset(&rs, s.len);
   free_schema(&s);
+}
+
+static void validate_rows(const char *table, const Schema *s, const RowSet *rs) {
+  for (size_t r = 0; r < rs->len; r++) {
+    for (size_t c = 0; c < s->len; c++) {
+      if (!validate_type(s->cols[c].type, rs->rows[r][c]))
+        die("%s: valeur invalide ligne %zu colonne %s",
+            table, r + 1, s->cols[c].name);
+    }
+  }
+  require_unique_pk(table, s, rs);
 }
 
 static void cmd_check(int argc, char **argv) {
@@ -774,9 +790,56 @@ static void cmd_drop(const char *table) {
   free(schema); free(data); free(tombstone); free(tables); free(td);
 }
 
+static void cmd_transact(int argc, char **argv) {
+  if (argc < 1 || argc > 64)
+    die("usage: bdb transact TABLE=DATA.bdb [TABLE=DATA.bdb ...]");
+
+  WalEntry *entries = calloc((size_t)argc, sizeof(WalEntry));
+  Schema *schemas = calloc((size_t)argc, sizeof(Schema));
+  RowSet *rowsets = calloc((size_t)argc, sizeof(RowSet));
+  char **tables = calloc((size_t)argc, sizeof(char *));
+  char **targets = calloc((size_t)argc, sizeof(char *));
+  char **staged = calloc((size_t)argc, sizeof(char *));
+  if (!entries || !schemas || !rowsets || !tables || !targets || !staged)
+    die("out of memory");
+
+  for (int i = 0; i < argc; i++) {
+    const char *eq = strchr(argv[i], '=');
+    if (!eq || eq == argv[i] || !eq[1])
+      die("transaction attend TABLE=DATA.bdb");
+    tables[i] = strndup(argv[i], (size_t)(eq - argv[i]));
+    if (!tables[i]) die("out of memory");
+    if (!is_name(tables[i])) die("nom de table invalide: %s", tables[i]);
+    for (int prev = 0; prev < i; prev++) {
+      if (strcmp(tables[prev], tables[i]) == 0)
+        die("table dupliquee dans la transaction: %s", tables[i]);
+    }
+    require_table(tables[i]);
+    schemas[i] = load_schema(tables[i]);
+    rowsets[i] = read_rows_path(eq + 1, &schemas[i]);
+    validate_rows(tables[i], &schemas[i], &rowsets[i]);
+    targets[i] = data_path(tables[i]);
+    staged[i] = stage_rows(tables[i], &schemas[i], &rowsets[i]);
+    entries[i].target = targets[i];
+    entries[i].staged = staged[i];
+  }
+
+  commit_files(entries, (size_t)argc);
+  for (int i = 0; i < argc; i++) {
+    free(staged[i]);
+    free(targets[i]);
+    free_rowset(&rowsets[i], schemas[i].len);
+    free_schema(&schemas[i]);
+    free(tables[i]);
+  }
+  free(staged); free(targets); free(tables);
+  free(rowsets); free(schemas); free(entries);
+  printf("transaction validee: %d table(s)\n", argc);
+}
+
 static void usage(void) {
   puts("bdbc - moteur C natif pour bdb");
-  puts("usage: bdb init|create|tables|schema|insert|select|dump|update|delete|drop|check ...");
+  puts("usage: bdb init|create|tables|schema|insert|select|dump|update|delete|drop|check|transact ...");
 }
 
 int main(int argc, char **argv) {
@@ -785,7 +848,8 @@ int main(int argc, char **argv) {
   if (strcmp(cmd, "version") == 0 || strcmp(cmd, "--version") == 0) { puts(VERSION); return 0; }
   bool init = !strcmp(cmd, "init");
   bool writes = !strcmp(cmd, "create") || !strcmp(cmd, "insert") ||
-    !strcmp(cmd, "update") || !strcmp(cmd, "delete") || !strcmp(cmd, "drop");
+    !strcmp(cmd, "update") || !strcmp(cmd, "delete") || !strcmp(cmd, "drop") ||
+    !strcmp(cmd, "transact");
   bool locked = false;
   if (!init) {
     require_db();
@@ -816,6 +880,7 @@ int main(int argc, char **argv) {
   else if (strcmp(cmd, "delete") == 0) cmd_delete(argc - 2, argv + 2);
   else if (strcmp(cmd, "drop") == 0) { if (argc != 3) die("usage: bdb drop TABLE"); cmd_drop(argv[2]); }
   else if (strcmp(cmd, "check") == 0) cmd_check(argc - 2, argv + 2);
+  else if (strcmp(cmd, "transact") == 0) cmd_transact(argc - 2, argv + 2);
   else {
     usage();
     if (locked) unlock_db();

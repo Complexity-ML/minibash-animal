@@ -32,6 +32,7 @@ usage: bdbctl [command] [args]
   dependencies            service requires/after/before relationships
   dependency add SERVICE RELATION TARGET
   dependency remove SERVICE RELATION TARGET
+  config export|check|diff|apply [FILE]
   updates                 packages, updates and A/B boot slots
   events [DOMAIN]         recent control-plane events
   logs [SERVICE]          recent BDB service logs
@@ -310,6 +311,10 @@ cmd_dependency() {
   kill -USR1 1 2>/dev/null || true
 }
 
+cmd_config() {
+  /bin/bdbconf "$@"
+}
+
 cmd_updates() {
   for table in packages updates boot_slots; do
     have_table "$table" || continue
@@ -347,6 +352,7 @@ shell_help() {
 summary | health | services | control | network | storage | kernel | users
 registry [prefix] | dependencies | updates
 dependency add|remove SERVICE RELATION TARGET
+config export|check|diff|apply [file]
 events [domain] | logs [service] | check [table]
 start|stop|restart|enable|disable SERVICE
 db ARGS... | refresh | help | quit
@@ -379,6 +385,11 @@ cmd_shell() {
       dependency)
         # shellcheck disable=SC2086
         cmd_dependency $rest || true
+        read -r -p "enter> " _
+        ;;
+      config)
+        # shellcheck disable=SC2086
+        cmd_config $rest || true
         read -r -p "enter> " _
         ;;
       updates) cmd_updates; read -r -p "enter> " _ ;;
@@ -418,6 +429,7 @@ main() {
     registry) cmd_registry "$@" ;;
     dependencies) cmd_dependencies ;;
     dependency) cmd_dependency "$@" ;;
+    config) cmd_config "$@" ;;
     updates) cmd_updates ;;
     events) cmd_events "$@" ;;
     logs) cmd_logs "$@" ;;

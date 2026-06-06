@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# Versionable text manifests for the BDB registry and service graph.
+set -euo pipefail
+
+export BDB_PATH="${BDB_PATH:-/var/bdb}"
+BDB="${BDB_BIN:-/bin/bdb}"
+TMP_DIR=""
+
+cleanup() {
+  [ -z "$TMP_DIR" ] || rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT INT TERM
+
+usage() {
+  cat <<'EOF'
+usage: bdbconf <command> [FILE]
+
+  export [FILE]     export current registry and dependencies
+  check FILE        validate a manifest without changing BDB
+  diff FILE         compare a manifest with current BDB state
+  apply FILE        atomically replace managed state from a manifest
+
+format:
+  bdbconf 1
+  registry PATH TYPE OWNER VALUE...
+  dependency SERVICE requires|after|before TARGET
+EOF
+}
+
+die() {
+  echo "bdbconf: $*" >&2
+  exit 1
+}
+
+valid_path() {
+  [[ "$1" == /* ]] && [[ "$1" != *$'\t'* ]] && [[ "$1" != *$'\n'* ]]
+}
+
+valid_name() {
+  [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
+}
+
+validate_value() {
+  case "$1" in
+    string) [ -n "$2" ] ;;
+    int) [[ "$2" =~ ^-?[0-9]+$ ]] ;;
+    real) [[ "$2" =~ ^-?([0-9]+([.][0-9]*)?|[.][0-9]+)$ ]] ;;
+    bool) [[ "$2" == true || "$2" == false ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+service_exists() {
+  "$BDB" select services --where "name=$1" 2>/dev/null |
+    tail -n +2 | grep -q .
+}
+
+create_stage() {
+  local dir="$1"
+  BDB_PATH="$dir" "$BDB" init >/dev/null
+  BDB_PATH="$dir" "$BDB" create registry path:text:pk type:text value:text \
+    owner:text updated_at:int >/dev/null
+  BDB_PATH="$dir" "$BDB" create service_dependencies id:text:pk \
+    service:text relation:text target:text >/dev/null
+}
+
+validate_graph() {
+  local stage="$1"
+  BDB_PATH="$stage" "$BDB" dump service_dependencies 2>/dev/null |
+    tail -n +2 |
+    awk -F '\t' '
+      function visit(node, key, pair) {
+        if (mark[node] == 1) {
+          print "bdbconf: cycle de services autour de " node > "/dev/stderr"
+          failed = 1
+          return
+        }
+        if (mark[node] == 2 || failed) return
+        mark[node] = 1
+        for (key in edge) {
+          split(key, pair, SUBSEP)
+          if (pair[1] == node) visit(pair[2])
+        }
+        mark[node] = 2
+      }
+      {
+        if ($3 == "before") { from = $2; to = $4 }
+        else { from = $4; to = $2 }
+        nodes[from] = 1
+        nodes[to] = 1
+        edge[from SUBSEP to] = 1
+      }
+      END {
+        for (node in nodes) visit(node)
+        exit failed ? 1 : 0
+      }
+    ' || die "graphe de services cyclique"
+}
+
+parse_manifest() {
+  local file="$1" stage="$2"
+  local line_no=0 header=0 kind a b c rest id now
+  now=$(date +%s 2>/dev/null || echo 0)
+  while IFS= read -r line || [ -n "$line" ]; do
+    line_no=$((line_no + 1))
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [ -n "$line" ] || continue
+    [[ "$line" == \#* ]] && continue
+    read -r kind a b c rest <<< "$line"
+    if [ "$header" -eq 0 ]; then
+      [ "$kind" = bdbconf ] && [ "$a" = 1 ] && [ -z "${b:-}" ] ||
+        die "$file:$line_no: en-tete attendu: bdbconf 1"
+      header=1
+      continue
+    fi
+    case "$kind" in
+      registry)
+        [ -n "${a:-}" ] && [ -n "${b:-}" ] && [ -n "${c:-}" ] &&
+          [ -n "${rest:-}" ] ||
+          die "$file:$line_no: registry PATH TYPE OWNER VALUE"
+        valid_path "$a" || die "$file:$line_no: chemin invalide: $a"
+        valid_name "$c" || die "$file:$line_no: owner invalide: $c"
+        validate_value "$b" "$rest" ||
+          die "$file:$line_no: valeur invalide pour $b"
+        BDB_PATH="$stage" "$BDB" insert registry path="$a" type="$b" \
+          value="$rest" owner="$c" updated_at="$now" >/dev/null ||
+          die "$file:$line_no: entree registry dupliquee ou invalide"
+        ;;
+      dependency)
+        [ -n "${a:-}" ] && [ -n "${b:-}" ] && [ -n "${c:-}" ] &&
+          [ -z "${rest:-}" ] ||
+          die "$file:$line_no: dependency SERVICE RELATION TARGET"
+        valid_name "$a" && valid_name "$c" ||
+          die "$file:$line_no: nom de service invalide"
+        case "$b" in requires|after|before) ;; *)
+          die "$file:$line_no: relation invalide: $b"
+        esac
+        [ "$a" != "$c" ] || die "$file:$line_no: auto-dependance interdite"
+        service_exists "$a" || die "$file:$line_no: service inconnu: $a"
+        service_exists "$c" || die "$file:$line_no: cible inconnue: $c"
+        id="${a}:${b}:${c}"
+        BDB_PATH="$stage" "$BDB" insert service_dependencies id="$id" \
+          service="$a" relation="$b" target="$c" >/dev/null ||
+          die "$file:$line_no: dependance dupliquee"
+        ;;
+      *) die "$file:$line_no: directive inconnue: $kind" ;;
+    esac
+  done < "$file"
+  [ "$header" -eq 1 ] || die "$file: manifeste vide"
+  BDB_PATH="$stage" "$BDB" check >/dev/null
+  validate_graph "$stage"
+}
+
+emit_state() {
+  local path="$1"
+  {
+    echo "bdbconf 1"
+    echo
+    echo "# Typed registry"
+    BDB_PATH="$path" "$BDB" dump registry 2>/dev/null | tail -n +2 |
+      awk -F '\t' '{ print "registry " $1 " " $2 " " $4 " " $3 }' |
+      LC_ALL=C sort
+    echo
+    echo "# Service graph"
+    BDB_PATH="$path" "$BDB" dump service_dependencies 2>/dev/null |
+      tail -n +2 |
+      awk -F '\t' '{ print "dependency " $2 " " $3 " " $4 }' |
+      LC_ALL=C sort
+  }
+}
+
+stage_manifest() {
+  local file="$1" dir="$2"
+  [ -r "$file" ] || die "fichier introuvable: $file"
+  create_stage "$dir"
+  parse_manifest "$file" "$dir"
+}
+
+cmd_export() {
+  local output="${1:-}"
+  if [ -n "$output" ]; then
+    emit_state "$BDB_PATH" > "$output"
+    echo "bdbconf: exported $output"
+  else
+    emit_state "$BDB_PATH"
+  fi
+}
+
+cmd_check() {
+  local file="${1:-}"
+  [ -n "$file" ] || die "usage: bdbconf check FILE"
+  TMP_DIR=$(mktemp -d)
+  stage_manifest "$file" "$TMP_DIR/db"
+  echo "bdbconf: manifest valid"
+}
+
+cmd_diff() {
+  local file="${1:-}"
+  [ -n "$file" ] || die "usage: bdbconf diff FILE"
+  TMP_DIR=$(mktemp -d)
+  stage_manifest "$file" "$TMP_DIR/db"
+  emit_state "$TMP_DIR/db" > "$TMP_DIR/wanted.conf"
+  emit_state "$BDB_PATH" > "$TMP_DIR/current.conf"
+  local rc=0
+  diff -u "$TMP_DIR/current.conf" "$TMP_DIR/wanted.conf" || rc=$?
+  return "$rc"
+}
+
+cmd_apply() {
+  local file="${1:-}"
+  [ -n "$file" ] || die "usage: bdbconf apply FILE"
+  TMP_DIR=$(mktemp -d)
+  stage_manifest "$file" "$TMP_DIR/db"
+  "$BDB" transact \
+    "registry=$TMP_DIR/db/tables/registry/data.bdb" \
+    "service_dependencies=$TMP_DIR/db/tables/service_dependencies/data.bdb"
+  kill -USR1 1 2>/dev/null || true
+  echo "bdbconf: applied atomically"
+}
+
+command="${1:-help}"
+shift || true
+case "$command" in
+  export) cmd_export "$@" ;;
+  check) cmd_check "$@" ;;
+  diff) cmd_diff "$@" ;;
+  apply) cmd_apply "$@" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 64 ;;
+esac

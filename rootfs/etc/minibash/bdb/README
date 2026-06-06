@@ -3,3 +3,5 @@ minibash-linux native BDB boot database.
 The init process copies this seed database to /var/bdb during early boot.
 Runtime mutations use the C engine's fsync-backed redo WAL. Run `bdb check`
 to validate table structure, types and primary-key uniqueness.
+`bdb transact TABLE=DATA.bdb ...` publishes validated table images atomically.
+`bdbconf` uses it to apply the versioned `/etc/minibash/system.conf` manifest.

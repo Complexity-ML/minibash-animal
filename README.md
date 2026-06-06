@@ -78,6 +78,31 @@ bdbctl dependency add graphical requires dbus
 `minit` trie les unités, bloque les cycles et arrête les dépendants avant leurs
 prérequis.
 
+### Configuration versionnée
+
+`bdbconf` fait le pont entre un fichier texte Git et l'état central BDB :
+
+```bash
+bdbconf export machine.conf
+bdbconf check machine.conf
+bdbconf diff machine.conf
+bdbconf apply machine.conf
+```
+
+`apply` reconstruit les tables gérées dans une base temporaire, valide les types,
+les clés et les services référencés, puis publie `registry` et
+`service_dependencies` dans une seule transaction WAL. Une erreur ne modifie
+rien. Le manifeste de référence est `/etc/minibash/system.conf`.
+
+```text
+bdbconf 1
+registry /system/desktop/enabled bool system true
+dependency graphical requires dbus
+```
+
+Le fichier texte représente l'intention versionnée; BDB représente l'état
+runtime atomique; `minit` applique cet état au Linux réel.
+
 ### Persistance disque
 
 minit cherche un disque (`/dev/vda`, virtio), le formate en ext2 au premier boot

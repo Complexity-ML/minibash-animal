@@ -165,7 +165,7 @@ rm -rf "$CHROOT"/var/lib/apt/lists/*
 log "overlaying minibash (init, bdb, services, tools)"
 # minibash filesystem bits (services, tools, bdb seed, configs). We copy
 # selectively so we don't clobber Debian's system users/PAM/etc.
-for p in services bin/bdb bin/bdbql bin/bdbsh bin/bdbctl bin/bdbreg bin/bashsvc bin/login bin/passwd bin/desktop bin/desktop-install \
+for p in services bin/bdb bin/bdbql bin/bdbsh bin/bdbctl bin/bdbreg bin/bdbconf bin/bashsvc bin/login bin/passwd bin/desktop bin/desktop-install \
          bin/pkg bin/minibash-install bin/minibash-update bin/gpu bin/wifi \
          bin/netfix bin/wifidiag bin/minibash-services bin/minibash-desktop-warmup \
          etc/minibash etc/shells etc/NetworkManager etc/iwd etc/lightdm etc/polkit-1 etc/sudoers.d \

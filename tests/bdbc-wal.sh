@@ -47,4 +47,29 @@ status=$?
 set -e
 [ "$status" -ne 0 ]
 
+# Multi-table commit: both replacements become visible after one WAL recovery.
+"$TMP/bdbc" create lefts id:text:pk value:int
+"$TMP/bdbc" create rights id:text:pk value:int
+"$TMP/bdbc" insert lefts id=l value=1
+"$TMP/bdbc" insert rights id=r value=1
+mkdir "$TMP/stage"
+export STAGE_BDB="$TMP/stage"
+BDB_PATH="$STAGE_BDB" "$TMP/bdbc" init
+BDB_PATH="$STAGE_BDB" "$TMP/bdbc" create lefts id:text:pk value:int
+BDB_PATH="$STAGE_BDB" "$TMP/bdbc" create rights id:text:pk value:int
+BDB_PATH="$STAGE_BDB" "$TMP/bdbc" insert lefts id=l value=2
+BDB_PATH="$STAGE_BDB" "$TMP/bdbc" insert rights id=r value=2
+
+set +e
+BDB_TEST_CRASH_AFTER_WAL=1 "$TMP/bdbc" transact \
+  "lefts=$STAGE_BDB/tables/lefts/data.bdb" \
+  "rights=$STAGE_BDB/tables/rights/data.bdb" >/dev/null 2>&1
+status=$?
+set -e
+[ "$status" -eq 99 ]
+[ -f "$BDB_PATH/WAL" ]
+left=$("$TMP/bdbc" select lefts --where id=l | tail -n 1 | cut -f2)
+right=$("$TMP/bdbc" select rights --where id=r | tail -n 1 | cut -f2)
+[ "$left" = 2 ] && [ "$right" = 2 ]
+
 echo "bdbc WAL recovery: ok"
