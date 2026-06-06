@@ -1,0 +1,350 @@
+#!/usr/bin/env bash
+# Unified operator console for the minibash BDB control plane.
+set -uo pipefail
+
+BDB_PATH="${BDB_PATH:-/var/bdb}"
+export BDB_PATH
+BDB_BIN="${BDB_BIN:-/bin/bdb}"
+BASHSVC_BIN="${BASHSVC_BIN:-/bin/bashsvc}"
+
+bold=$'\033[1m'
+cyan=$'\033[36m'
+green=$'\033[32m'
+yellow=$'\033[33m'
+red=$'\033[31m'
+reset=$'\033[0m'
+[ -t 1 ] || bold= cyan= green= yellow= red= reset=
+
+usage() {
+  cat <<'EOF'
+usage: bdbctl [command] [args]
+
+  summary                 machine and control-plane overview
+  health                  actionable BDB/runtime inconsistencies
+  services                services, desired state and live PID health
+  service ACTION NAME     start|stop|restart|enable|disable
+  control                 desired/observed generations and retries
+  network                 interfaces, routes and redacted BDB profiles
+  storage                 filesystems and declarative mounts
+  kernel                  modules and sysctl state
+  users                   local BDB accounts (passwords never displayed)
+  updates                 packages, updates and A/B boot slots
+  events [DOMAIN]         recent control-plane events
+  logs [SERVICE]          recent BDB service logs
+  check [TABLE]           validate the native BDB
+  db ARGS...              raw bdb command
+  shell                   interactive administration console
+EOF
+}
+
+have_table() {
+  "$BDB_BIN" tables 2>/dev/null | grep -qx "$1"
+}
+
+heading() {
+  printf '\n%s%s%s\n' "$bold$cyan" "$*" "$reset"
+}
+
+host_name() {
+  cat /proc/sys/kernel/hostname 2>/dev/null || hostname 2>/dev/null || echo minibash
+}
+
+uptime_seconds() {
+  local up=0
+  read -r up _ </proc/uptime 2>/dev/null || true
+  printf '%s' "${up%.*}"
+}
+
+count_rows() {
+  have_table "$1" || { printf '0'; return; }
+  "$BDB_BIN" dump "$1" 2>/dev/null | tail -n +2 | awk 'END { print NR + 0 }'
+}
+
+count_tables() {
+  "$BDB_BIN" tables 2>/dev/null | awk 'END { print NR + 0 }'
+}
+
+cmd_summary() {
+  local total running unhealthy
+  total=$(count_rows services)
+  running=$("$BDB_BIN" dump services 2>/dev/null |
+    awk -F '\t' 'NR > 1 && $6 == "running" { n++ } END { print n + 0 }')
+  unhealthy=$(emit_health_issues | awk 'END { print NR + 0 }')
+
+  printf '%sminibash control%s  host=%s  uptime=%ss  bdb=%s\n' \
+    "$bold" "$reset" "$(host_name)" "$(uptime_seconds)" \
+    "$("$BDB_BIN" version 2>/dev/null || echo unknown)"
+  if [ "$unhealthy" -eq 0 ]; then
+    printf 'health=%sOK%s  services=%s/%s running  tables=%s\n' \
+      "$green" "$reset" "$running" "$total" "$(count_tables)"
+  else
+    printf 'health=%sATTENTION%s  issues=%s  (run: bdbctl health)\n' \
+      "$yellow" "$reset" "$unhealthy"
+  fi
+
+  heading "Control plane"
+  cmd_control
+  heading "Network"
+  ip -4 -brief address 2>/dev/null || true
+  ip route show default 2>/dev/null || true
+  heading "Storage"
+  df -h / /var/bdb 2>/dev/null | awk 'NR == 1 || !seen[$1]++'
+}
+
+emit_health_issues() {
+  local pid
+  if have_table services; then
+    "$BDB_BIN" dump services 2>/dev/null | tail -n +2 |
+      while IFS= read -r line; do
+        name=$(printf '%s' "$line" | cut -f1)
+        desired=$(printf '%s' "$line" | cut -f5)
+        status=$(printf '%s' "$line" | cut -f6)
+        pid=$(printf '%s' "$line" | cut -f7)
+        if [ "$status" = running ] &&
+          { [ "${pid:-0}" = 0 ] || [ ! -d "/proc/$pid" ]; }; then
+          printf 'service\t%s\tstale pid %s\n' "$name" "$pid"
+        elif [ "$desired" = up ] &&
+          { [ "$status" = failed ] || [ "$status" = crashed ]; }; then
+          printf 'service\t%s\tdesired up, status %s\n' "$name" "$status"
+        fi
+      done
+  fi
+  if have_table control_state; then
+    "$BDB_BIN" dump control_state 2>/dev/null |
+      awk -F '\t' 'NR > 1 && $4 != "applied" {
+        printf "control\t%s\tstatus %s, desired %s observed %s, error %s\n",
+          $1, $4, $2, $3, $7
+      }'
+  fi
+  if have_table modules; then
+    "$BDB_BIN" dump modules 2>/dev/null |
+      awk -F '\t' 'NR > 1 && ($4 == "true" || $4 == "1") && $5 == "failed" {
+        printf "module\t%s\tautoload failed\n", $1
+      }'
+  fi
+  if have_table mounts; then
+    "$BDB_BIN" dump mounts 2>/dev/null |
+      awk -F '\t' 'NR > 1 && $6 == "error" {
+        printf "mount\t%s\tdesired %s, status error\n", $1, $5
+      }'
+  fi
+  if have_table sysctl; then
+    "$BDB_BIN" dump sysctl 2>/dev/null |
+      awk -F '\t' 'NR > 1 && $3 == "failed" {
+        printf "sysctl\t%s\tvalue %s failed\n", $1, $2
+      }'
+  fi
+}
+
+cmd_health() {
+  local issues
+  issues=$(emit_health_issues)
+  if [ -z "$issues" ]; then
+    printf '%sOK%s no actionable inconsistency detected\n' "$green" "$reset"
+    return
+  fi
+  printf '%-10s %-20s %s\n' KIND OBJECT DETAIL
+  printf '%s\n' "$issues" |
+    awk -F '\t' '{ printf "%-10s %-20s %s\n", $1, $2, $3 }'
+  return 1
+}
+
+cmd_services() {
+  printf '%-13s %-8s %-9s %-7s %-5s %s\n' \
+    NAME DESIRED STATUS AUTOSTART PID LIVE
+  "$BDB_BIN" dump services 2>/dev/null | tail -n +2 |
+    while IFS= read -r line; do
+      name=$(printf '%s' "$line" | cut -f1)
+      autostart=$(printf '%s' "$line" | cut -f3)
+      desired=$(printf '%s' "$line" | cut -f5)
+      status=$(printf '%s' "$line" | cut -f6)
+      pid=$(printf '%s' "$line" | cut -f7)
+      live=-
+      if [ "${pid:-0}" != 0 ] && [ -d "/proc/$pid" ]; then
+        live=yes
+      elif [ "$status" = running ]; then
+        live=STALE
+      fi
+      printf '%-13s %-8s %-9s %-7s %-5s %s\n' \
+        "$name" "$desired" "$status" "$autostart" "$pid" "$live"
+    done
+}
+
+cmd_service() {
+  local action="${1:-}" name="${2:-}"
+  case "$action" in
+    start|stop|restart|enable|disable) ;;
+    *) echo "bdbctl: action service invalide: $action" >&2; return 64 ;;
+  esac
+  [ -n "$name" ] || { echo "usage: bdbctl service ACTION NAME" >&2; return 64; }
+  "$BASHSVC_BIN" "$action" "$name"
+}
+
+cmd_control() {
+  have_table control_state || { echo "control_state: absent"; return; }
+  printf '%-10s %7s %8s %-9s %5s %-10s %s\n' \
+    DOMAIN DESIRED OBSERVED STATUS RETRY NEXT ERROR
+  "$BDB_BIN" dump control_state 2>/dev/null | tail -n +2 |
+    awk -F '\t' '{ printf "%-10s %7s %8s %-9s %5s %-10s %s\n",
+      $1, $2, $3, $4, $5, ($6 == "0" ? "-" : $6), $7 }'
+}
+
+cmd_network() {
+  heading "Interfaces"
+  ip -brief link 2>/dev/null || true
+  ip -4 -brief address 2>/dev/null || true
+  heading "Routes"
+  ip route 2>/dev/null || true
+  if have_table network; then
+    heading "BDB profiles (stored state)"
+    printf '%-24s %-10s %-9s %-12s %s\n' SSID IFACE MANAGED STATE IP
+    "$BDB_BIN" dump network 2>/dev/null | tail -n +2 |
+      awk -F '\t' '{ printf "%-24s %-10s %-9s %-12s %s\n", $1, $3, $4, $5, $6 }'
+  fi
+  if command -v nmcli >/dev/null 2>&1; then
+    heading "NetworkManager"
+    nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>/dev/null || true
+  fi
+}
+
+cmd_storage() {
+  heading "Filesystems"
+  df -h 2>/dev/null || true
+  if have_table mounts; then
+    heading "Declarative mounts"
+    "$BDB_BIN" select mounts
+  fi
+}
+
+cmd_kernel() {
+  if have_table modules; then
+    heading "Kernel modules"
+    printf '%-18s %-9s %-10s %s\n' NAME AUTOLOAD STATUS DESCRIPTION
+    "$BDB_BIN" dump modules 2>/dev/null | tail -n +2 |
+      awk -F '\t' '{ printf "%-18s %-9s %-10s %s\n", $1, $4, $5, $6 }'
+  fi
+  if have_table sysctl; then
+    heading "Sysctl"
+    printf '%-34s %-12s %-9s %s\n' KEY VALUE STATUS DESCRIPTION
+    "$BDB_BIN" dump sysctl 2>/dev/null | tail -n +2 |
+      awk -F '\t' '{ printf "%-34s %-12s %-9s %s\n", $1, $2, $3, $4 }'
+  fi
+}
+
+cmd_users() {
+  have_table users || { echo "users: absent"; return; }
+  printf '%-16s %-24s %-18s %s\n' USER SHELL HOME PASSWORD
+  "$BDB_BIN" dump users 2>/dev/null | tail -n +2 |
+    awk -F '\t' '{
+      kind = ($2 ~ /^\$6\$/ ? "sha512-crypt" : ($2 == "" ? "unset" : "legacy/plain"));
+      printf "%-16s %-24s %-18s %s\n", $1, $3, $4, kind
+    }'
+}
+
+cmd_updates() {
+  for table in packages updates boot_slots; do
+    have_table "$table" || continue
+    heading "$table"
+    "$BDB_BIN" select "$table"
+  done
+}
+
+cmd_events() {
+  local domain="${1:-}"
+  have_table events || { echo "events: absent"; return; }
+  if [ -n "$domain" ]; then
+    "$BDB_BIN" select events --where "domain=$domain" | tail -n 21
+  else
+    "$BDB_BIN" dump events | tail -n 21
+  fi
+}
+
+cmd_logs() {
+  local service="${1:-}"
+  have_table logs || { echo "logs: absent"; return; }
+  if [ -n "$service" ]; then
+    "$BDB_BIN" select logs --where "service=$service" | tail -n 31
+  else
+    "$BDB_BIN" dump logs | tail -n 31
+  fi
+}
+
+cmd_check() {
+  "$BDB_BIN" check "$@"
+}
+
+shell_help() {
+  cat <<'EOF'
+summary | health | services | control | network | storage | kernel | users | updates
+events [domain] | logs [service] | check [table]
+start|stop|restart|enable|disable SERVICE
+db ARGS... | refresh | help | quit
+EOF
+}
+
+cmd_shell() {
+  local line cmd rest
+  while true; do
+    printf '\033[2J\033[H'
+    cmd_summary
+    printf '\n%sCommands:%s health services network storage kernel users updates events logs\n' "$cyan" "$reset"
+    printf '          start/stop/restart SERVICE | check | db ... | help | quit\n'
+    printf '%sbdbctl>%s ' "$bold" "$reset"
+    IFS= read -r line || break
+    cmd=${line%% *}
+    if [ "$cmd" = "$line" ]; then rest=""; else rest=${line#* }; fi
+    case "$cmd" in
+      ""|refresh|summary) ;;
+      health) cmd_health || true; read -r -p "enter> " _ ;;
+      services) cmd_services; read -r -p "enter> " _ ;;
+      control) cmd_control; read -r -p "enter> " _ ;;
+      network) cmd_network; read -r -p "enter> " _ ;;
+      storage) cmd_storage; read -r -p "enter> " _ ;;
+      kernel) cmd_kernel; read -r -p "enter> " _ ;;
+      users) cmd_users; read -r -p "enter> " _ ;;
+      updates) cmd_updates; read -r -p "enter> " _ ;;
+      events) cmd_events "$rest"; read -r -p "enter> " _ ;;
+      logs) cmd_logs "$rest"; read -r -p "enter> " _ ;;
+      check) cmd_check $rest; read -r -p "enter> " _ ;;
+      start|stop|restart|enable|disable)
+        cmd_service "$cmd" "$rest" || true
+        sleep 1
+        ;;
+      db)
+        # Interactive raw passthrough intentionally uses shell word splitting.
+        # shellcheck disable=SC2086
+        "$BDB_BIN" $rest || true
+        read -r -p "enter> " _
+        ;;
+      help) shell_help; read -r -p "enter> " _ ;;
+      quit|exit|q) break ;;
+      *) echo "commande inconnue: $cmd"; sleep 1 ;;
+    esac
+  done
+}
+
+main() {
+  local command="${1:-shell}"
+  shift || true
+  case "$command" in
+    summary) cmd_summary ;;
+    health) cmd_health ;;
+    services) cmd_services ;;
+    service) cmd_service "$@" ;;
+    control) cmd_control ;;
+    network) cmd_network ;;
+    storage) cmd_storage ;;
+    kernel) cmd_kernel ;;
+    users) cmd_users ;;
+    updates) cmd_updates ;;
+    events) cmd_events "$@" ;;
+    logs) cmd_logs "$@" ;;
+    check) cmd_check "$@" ;;
+    db) "$BDB_BIN" "$@" ;;
+    shell) cmd_shell ;;
+    help|-h|--help) usage ;;
+    *) usage >&2; return 64 ;;
+  esac
+}
+
+main "$@"

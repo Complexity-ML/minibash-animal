@@ -40,6 +40,21 @@ coupure, la première commande rejoue le journal et récupère automatiquement u
 verrou laissé par le processus interrompu. `bdb check [TABLE]` vérifie la
 structure, les types et l'unicité des clés primaires.
 
+### Console d'administration
+
+`bdbctl` rassemble les vues opérateur et les actions du système :
+
+```bash
+bdbctl summary
+bdbctl health
+bdbctl network
+bdbctl service restart sshd
+bdbctl shell
+```
+
+Le mode interactif est aussi lancé par `/bin/desktop`. Les profils réseau et les
+comptes sont affichés sans exposer les PSK ni les hash de mots de passe.
+
 ### Persistance disque
 
 minit cherche un disque (`/dev/vda`, virtio), le formate en ext2 au premier boot
@@ -217,6 +232,7 @@ docker run --rm --platform linux/amd64 -v /Users/boris/Dev:/work \
 - `rust/bdbboot`      : résumé des services au boot.
 - `rootfs/bin/login`  : login Bash (table `users` + autologin kernel).
 - `rootfs/bin/bashsvc`: client de contrôle du superviseur.
+- `rootfs/bin/bdbctl` : console unifiée (services, réseau, stockage, noyau, mises à jour).
 - `rootfs/bin/minibash-install`: première brique installateur disque.
 - `rootfs/bin/pkg`    : package manager minimal.
 - `rootfs/bin/minibash-update`: staging metadata d'upgrades.
