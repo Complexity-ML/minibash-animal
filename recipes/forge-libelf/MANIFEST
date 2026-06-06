@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-forge-libelf
+Version: 0.192
+Architecture: amd64
+Description: Host libelf (elfutils) + zlib for the Altitude forge (kernel objtool)

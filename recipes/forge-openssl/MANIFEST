@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-forge-openssl
+Version: 3.3.2
+Architecture: amd64
+Description: Host OpenSSL (libcrypto/libssl + headers) for the Altitude forge (kernel module signing / extract-cert)
