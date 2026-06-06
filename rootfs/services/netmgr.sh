@@ -70,11 +70,20 @@ match-device=type:ethernet
 managed=1
 EOF
 
-for m in \
-  crypto_user algif_hash algif_skcipher ecb cbc md5 aesni_intel des_generic cmac hmac \
-  evdev mousedev cfg80211 mac80211 rfkill iwlwifi iwlmvm r8169 r8125 e1000e igb; do
-  modprobe "$m" 2>/dev/null || true
-done
+# Kernel modules are driven by the bdb `modules` table: kmod reconciles it
+# (modprobe + writes loaded/failed status back). This is the DB-driven kernel.
+# CRITICAL: it loads `ccm`+aes BEFORE the WiFi -- mac80211 needs CCM(AES) to
+# install the WPA CCMP key; a missing `ccm` is THE multi-day "WRONG_KEY" bug,
+# now visible as modules.status=failed instead of invisible.
+if [ -x /services/kmod.sh ]; then
+  /services/kmod.sh || true
+else
+  # fallback if the modules table isn't seeded yet
+  for m in ccm ctr gcm aes_generic aesni_intel cmac evdev mousedev \
+           cfg80211 mac80211 rfkill iwlwifi iwlmvm rtl8xxxu r8169 r8125 e1000e igb; do
+    modprobe "$m" 2>/dev/null || true
+  done
+fi
 rfkill unblock all 2>/dev/null || true
 if command -v iw >/dev/null 2>&1 && ! iw dev "${WIFI_IFACE:-wlan0}" info >/dev/null 2>&1; then
   iw phy phy0 interface add "${WIFI_IFACE:-wlan0}" type managed 2>/dev/null || true

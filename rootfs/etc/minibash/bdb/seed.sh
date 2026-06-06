@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# First-boot seed for the NATIVE C bdb engine (bdbc, binary BDB1 format).
+#
+# The old base64-TSV table seeds were the BASH bootstrap; now that the engine is
+# the C `bdbc`, the schema + rows are (re)built declaratively here, via `bdb`
+# itself, into the native binary format. Idempotent: a table is only created if
+# missing, so this is safe to run on every boot.
+set -u
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export BDB_PATH="${BDB_PATH:-/var/bdb}"
+BDB=/bin/bdb
+
+have_table() { $BDB tables 2>/dev/null | grep -qx "$1"; }
+
+# --- services: one row per /services/*.sh ----------------------------------
+if ! have_table services; then
+  $BDB create services name:text:pk command:text autostart:bool restart:bool \
+    desired:text status:text pid:int description:text >/dev/null
+  for f in /services/*.sh; do
+    [ -e "$f" ] || continue
+    n=$(basename "$f" .sh)
+    # the graphical desktop stays down by default; everything else autostarts
+    case "$n" in graphical|desktopd) on=false; want=down ;; *) on=true; want=up ;; esac
+    $BDB insert services name="$n" command="$f" autostart="$on" restart=true \
+      desired="$want" status=stopped pid=0 description="service $n" >/dev/null
+  done
+fi
+
+# --- modules: KERNEL MODULES, driven by the DB -----------------------------
+# This is the "kernel services via the database" piece. `ccm` + aes were THE
+# missing modules that broke WiFi for days (mac80211 could not install the WPA
+# CCMP key). They now live in the database, not a hardcoded modprobe list, so
+# the failure is visible (status=failed) and the set is editable with `bdb`.
+if ! have_table modules; then
+  $BDB create modules name:text:pk params:text stage:text autoload:bool \
+    status:text description:text >/dev/null
+  add() { $BDB insert modules name="$1" params="$2" stage="$3" autoload=true \
+            status=unloaded description="$4" >/dev/null; }
+  # crypto -- mandatory for the WPA CCMP/PMF key install (THE multi-day bug)
+  add ccm         "" crypto "CCM(AES) - cle CCMP WPA (sans lui: handshake KO)"
+  add aes_generic "" crypto "AES (soft)"
+  add aesni_intel "" crypto "AES accelere Intel"
+  add ctr         "" crypto "CTR"
+  add gcm         "" crypto "GCM"
+  add cmac        "" crypto "CMAC - PMF/BIP (WPA3)"
+  # 802.11 stack + drivers
+  add cfg80211 "" net "Pile 802.11 (cfg80211)"
+  add mac80211 "" net "MAC 802.11"
+  add rfkill   "" net "RF kill"
+  add iwlwifi  "" net "Intel WiFi"
+  add iwlmvm   "" net "Intel WiFi opmode (MVM)"
+  add rtl8xxxu "" net "Realtek USB WiFi (TP-Link)"
+  add r8169    "" net "Realtek Ethernet"
+fi
+
+# --- mounts: /etc/fstab as ROWS, driven by the DB (reconciled by mountd) ----
+if ! have_table mounts; then
+  $BDB create mounts dst:text:pk src:text fstype:text opts:text desired:text \
+    status:text >/dev/null
+  # demo: a tmpfs that exists purely because a DB row says so. Flip desired to
+  # unmounted and mountd umounts it -- the filesystem follows the database.
+  $BDB insert mounts dst=/mnt/data src=tmpfs fstype=tmpfs opts=size=64m \
+    desired=mounted status=unmounted >/dev/null
+fi
