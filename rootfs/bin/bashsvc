@@ -23,6 +23,8 @@ usage: bashsvc <command> [args]
   enable SERVICE       autostart=true  + desired=up
   disable SERVICE      autostart=false + desired=down
   logs SERVICE         show captured log lines from the bdb logs table
+  control [DOMAIN]     show control-plane generations, health and retries
+  events [DOMAIN]      show the control-plane event journal
   reload               ask minit to reconcile now (SIGUSR1)
   poweroff             clean shutdown + power off (SIGTERM to PID 1)
   reboot               clean shutdown + reboot   (SIGUSR2 to PID 1)
@@ -127,6 +129,22 @@ cmd_logs() {
   /bin/bdb select logs --where "service=$s"
 }
 
+cmd_control() {
+  if [ $# -ge 1 ]; then
+    /bin/bdb select control_state --where "domain=$1"
+  else
+    /bin/bdb select control_state
+  fi
+}
+
+cmd_events() {
+  if [ $# -ge 1 ]; then
+    /bin/bdb select events --where "domain=$1"
+  else
+    /bin/bdb select events
+  fi
+}
+
 main() {
   local cmd="${1:-help}"
   shift || true
@@ -139,6 +157,8 @@ main() {
     enable)      cmd_enable "$@" ;;
     disable)     cmd_disable "$@" ;;
     logs)        cmd_logs "$@" ;;
+    control)     cmd_control "$@" ;;
+    events)      cmd_events "$@" ;;
     reload)      poke_minit; echo "bashsvc: reload sent" ;;
     poweroff)    echo "bashsvc: powering off"; kill -TERM "$INIT_PID" ;;
     reboot)      echo "bashsvc: rebooting"; kill -USR2 "$INIT_PID" ;;

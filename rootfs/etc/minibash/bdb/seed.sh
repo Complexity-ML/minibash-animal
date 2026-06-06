@@ -50,7 +50,6 @@ if ! have_table modules; then
             status=unloaded description="$4" >/dev/null; }
   # crypto -- mandatory for the WPA CCMP/PMF key install (THE multi-day bug)
   add ccm         "" crypto "CCM(AES) - cle CCMP WPA (sans lui: handshake KO)"
-  add aes_generic "" crypto "AES (soft)"
   add aesni_intel "" crypto "AES accelere Intel"
   add ctr         "" crypto "CTR"
   add gcm         "" crypto "GCM"
@@ -82,6 +81,13 @@ ensure_module md5            "" crypto "MD5 for iwd compatibility"
 ensure_module des_generic    "" crypto "DES compatibility"
 ensure_module hmac           "" crypto "HMAC for WPA authentication"
 
+# aes_generic disappeared as a loadable module on modern kernels; AES is
+# provided by aesni_intel/aes-lib. Disable the legacy row on upgraded systems.
+if $BDB dump modules 2>/dev/null | cut -f1 | grep -qx aes_generic; then
+  $BDB update modules --where name=aes_generic autoload=false status=obsolete \
+    description="legacy AES module; replaced by aesni_intel/aes-lib" >/dev/null
+fi
+
 # --- mounts: /etc/fstab as ROWS, driven by the DB (reconciled by mountd) ----
 if ! have_table mounts; then
   $BDB create mounts dst:text:pk src:text fstype:text opts:text desired:text \
@@ -101,4 +107,27 @@ if ! have_table sysctl; then
   s kernel.sysrq              1        "magic SysRq"
   s net.ipv4.tcp_syncookies   1        "protection SYN flood"
   s fs.file-max               262144   "nb max de descripteurs de fichiers"
+fi
+
+# --- control plane: generations, health and append-only event journal -------
+if ! have_table control_state; then
+  $BDB create control_state domain:text:pk desired_generation:int \
+    observed_generation:int status:text retry_count:int next_retry:int \
+    last_error:text last_signature:text updated_at:int >/dev/null
+fi
+
+ensure_control_domain() {
+  domain="$1"
+  $BDB dump control_state 2>/dev/null | cut -f1 | grep -qx "$domain" && return 0
+  $BDB insert control_state domain="$domain" desired_generation=0 \
+    observed_generation=0 status=new retry_count=0 next_retry=0 \
+    last_error="" last_signature="" updated_at=0 >/dev/null
+}
+ensure_control_domain modules
+ensure_control_domain mounts
+ensure_control_domain sysctl
+
+if ! have_table events; then
+  $BDB create events id:text:pk timestamp:int domain:text generation:int \
+    action:text result:text message:text >/dev/null
 fi
