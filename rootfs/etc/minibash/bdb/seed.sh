@@ -22,7 +22,7 @@ if ! have_table services; then
     r=true
     case "$n" in
       graphical|desktopd) on=false; want=down ;;   # desktop off by default
-      keymap)             on=true;  want=up; r=false ;;  # oneshot: apply then exit
+      keymap|kmod|mountd|sysctld) on=true; want=up; r=false ;;  # oneshot reconcilers
       *)                  on=true;  want=up ;;
     esac
     $BDB insert services name="$n" command="$f" autostart="$on" restart="$r" \
@@ -82,4 +82,15 @@ if ! have_table mounts; then
   # unmounted and mountd umounts it -- the filesystem follows the database.
   $BDB insert mounts dst=/mnt/data src=tmpfs fstype=tmpfs opts=size=64m \
     desired=mounted status=unmounted >/dev/null
+fi
+
+# --- sysctl: /etc/sysctl.conf as ROWS, applied by sysctld -------------------
+if ! have_table sysctl; then
+  $BDB create sysctl key:text:pk value:text status:text description:text >/dev/null
+  s() { $BDB insert sysctl key="$1" value="$2" status=unset description="$3" >/dev/null; }
+  s net.ipv4.ip_forward       0        "routage IPv4 (1 pour faire routeur)"
+  s vm.swappiness             10       "agressivite du swap (0-100)"
+  s kernel.sysrq              1        "magic SysRq"
+  s net.ipv4.tcp_syncookies   1        "protection SYN flood"
+  s fs.file-max               262144   "nb max de descripteurs de fichiers"
 fi
