@@ -229,25 +229,27 @@ if [ -n "$ETH" ]; then
         last="$carrier"
       fi
 
-      # Reconcile every pass because NetworkManager may not be ready during the
-      # first iteration and can otherwise reconnect an autoconnect profile.
       if [ "$carrier" = 1 ]; then
-        [ -n "${WIFI_SSID:-}" ] && nmcli connection modify "$WIFI_SSID" connection.autoconnect no >/dev/null 2>&1 || true
-        nmcli device disconnect "${WIFI_IFACE:-wlan0}" >/dev/null 2>&1 || true
-        iwctl station "${WIFI_IFACE:-wlan0}" disconnect >/dev/null 2>&1 || true
-        ip link set "$ETH" up 2>/dev/null || true
-        nmcli device connect "$ETH" >/dev/null 2>&1 || true
+        if [ "$(nmcli -g GENERAL.STATE device show "$ETH" 2>/dev/null)" != "100 (connected)" ]; then
+          ip link set "$ETH" up 2>/dev/null || true
+          nmcli device connect "$ETH" >/dev/null 2>&1 || true
+        fi
+        if [ "$(nmcli -g GENERAL.STATE device show "${WIFI_IFACE:-wlan0}" 2>/dev/null)" = "100 (connected)" ]; then
+          nmcli device disconnect "${WIFI_IFACE:-wlan0}" >/dev/null 2>&1 || true
+        fi
       else
-        nmcli device disconnect "$ETH" >/dev/null 2>&1 || true
-        ip addr flush dev "$ETH" 2>/dev/null || true
-        ip route del default dev "$ETH" 2>/dev/null || true
-        rfkill unblock wifi 2>/dev/null || true
-        iwctl device "${WIFI_IFACE:-wlan0}" set-property Powered on >/dev/null 2>&1 || true
-        nmcli radio wifi on >/dev/null 2>&1 || true
-        nmcli device set "${WIFI_IFACE:-wlan0}" managed yes >/dev/null 2>&1 || true
-        if [ -n "${WIFI_SSID:-}" ]; then
-          nmcli connection modify "$WIFI_SSID" connection.autoconnect yes >/dev/null 2>&1 || true
-          nmcli connection up "$WIFI_SSID" >/dev/null 2>&1 || true
+        if ip -4 addr show "$ETH" 2>/dev/null | grep -q 'inet '; then
+          nmcli device disconnect "$ETH" >/dev/null 2>&1 || true
+          ip addr flush dev "$ETH" 2>/dev/null || true
+          ip route del default dev "$ETH" 2>/dev/null || true
+        fi
+        wifi_state="$(nmcli -g GENERAL.STATE device show "${WIFI_IFACE:-wlan0}" 2>/dev/null || true)"
+        if [ "$wifi_state" != "100 (connected)" ]; then
+          rfkill unblock wifi 2>/dev/null || true
+          iwctl device "${WIFI_IFACE:-wlan0}" set-property Powered on >/dev/null 2>&1 || true
+          nmcli radio wifi on >/dev/null 2>&1 || true
+          nmcli device set "${WIFI_IFACE:-wlan0}" managed yes >/dev/null 2>&1 || true
+          [ -n "${WIFI_SSID:-}" ] && nmcli connection up "$WIFI_SSID" >/dev/null 2>&1 || true
         fi
       fi
       sleep 2
