@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build the Altitude disk root filesystem. Debian debootstrap is currently the
-# bootstrap provider for third-party binaries; Altitude-owned files are built,
-# signed and installed from the native Altitude package repository.
+# Build the Altitude disk root filesystem. A disposable bootstrap forge provides
+# third-party binaries; the delivered root is rebuilt only from signed Altitude
+# packages and contains neither apt nor dpkg state.
 #
 # Unlike the RAM model (hand-copied files), this is a full Debian install on
 # disk -> heavy desktops (GNOME) become a live `apt install` over SSH afterwards.
@@ -12,7 +12,8 @@ set -euo pipefail
 DISTRO_DIR="${DISTRO_DIR:-/work/minibash-linux}"
 OUT_DIR="${OUT_DIR:-$DISTRO_DIR/out}"
 ROOTFS_TGZ="${ROOTFS_TGZ:-$OUT_DIR/minibash-rootfs.tar.gz}"
-CHROOT="${CHROOT:-/tmp/mb-debian-root}"
+CHROOT="${CHROOT:-/tmp/altitude-bootstrap-root}"
+FINAL_ROOT="${FINAL_ROOT:-/tmp/altitude-package-root}"
 SUITE="${SUITE:-trixie}"
 MIRROR="${MIRROR:-http://deb.debian.org/debian}"
 
@@ -20,7 +21,7 @@ log() { printf '[altitude:rootfs] %s\n' "$*"; }
 inchroot() { chroot "$CHROOT" /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive "$@"; }
 
 # ---------------------------------------------------------------------------
-# 1. Minimal Debian base
+# 1. Disposable bootstrap forge
 # ---------------------------------------------------------------------------
 log "debootstrap $SUITE -> $CHROOT"
 rm -rf "$CHROOT"
@@ -106,7 +107,7 @@ inchroot apt-get install -y --no-install-recommends \
   fonts-dejavu-core fontconfig \
   sudo vim-tiny less iproute2 iputils-ping nano python3 openssl \
   procps psmisc \
-  build-essential cargo rustc zstd
+  build-essential cargo rustc zstd rsync
 
 # ---------------------------------------------------------------------------
 # 2b. GNOME desktop (OPTIONAL). Off by default: the image stays lean and GNOME
@@ -139,8 +140,7 @@ else
 fi
 
 # minit applies minibash.keymap=fr by feeding a binary keymap to BusyBox
-# loadkmap. The disk rootfs is Debian-based, so generate and wire that up here
-# instead of relying on the tiny initramfs build path.
+# loadkmap. Generate and wire that up in the forge.
 mkdir -p "$CHROOT/etc/keymaps"
 if command -v loadkeys >/dev/null 2>&1; then
   log "generating AZERTY console keymap"
@@ -164,7 +164,7 @@ rm -rf "$CHROOT"/var/lib/apt/lists/*
 # ---------------------------------------------------------------------------
 log "overlaying Altitude bootstrap (init, bdb, services, package manager)"
 # Altitude filesystem bits (services, tools, bdb seed, configs). We copy
-# selectively so we don't clobber Debian's system users/PAM/etc.
+# selectively so we don't clobber the forge's system users/PAM/etc.
 for p in services bin/altitude bin/bdb bin/bdbql bin/bdbsh bin/bdbctl bin/bdbreg bin/bdbconf bin/bashsvc bin/login bin/passwd bin/desktop bin/desktop-install \
          bin/pkg bin/altpkg-build bin/altrepo bin/minibash-install bin/minibash-update bin/gpu bin/wifi \
          bin/netfix bin/wifidiag bin/minibash-services bin/minibash-desktop-warmup \
@@ -172,7 +172,7 @@ for p in services bin/altitude bin/bdb bin/bdbql bin/bdbsh bin/bdbctl bin/bdbreg
          etc/modprobe.d/iwl.conf etc/fstab etc/xdg usr/share/applications usr/src/minibash; do
   if [ -e "$DISTRO_DIR/rootfs/$p" ]; then
     mkdir -p "$CHROOT/$(dirname "$p")"
-    # -T: merge INTO an existing dir (e.g. Debian's /etc/NetworkManager) instead
+    # -T: merge INTO an existing dir (e.g. /etc/NetworkManager) instead
     # of nesting it (which produced .../NetworkManager/NetworkManager/...).
     cp -aT "$DISTRO_DIR/rootfs/$p" "$CHROOT/$p"
   fi
@@ -196,7 +196,8 @@ cp -a "$OUT_DIR/repository/INDEX" "$OUT_DIR/repository/INDEX.sig" \
 cp "$OUT_DIR/repository/repository.pem" \
   "$CHROOT/etc/altitude/keys/repository.pem"
 log "installing Altitude-owned rootfs components from .altpkg"
-for package in altitude-identity altitude-core altitude-services; do
+for package in altitude-identity altitude-core altitude-services \
+               altitude-access; do
   inchroot env BDB_PATH=/etc/minibash/bdb /bin/pkg install "$package"
 done
 
@@ -252,11 +253,76 @@ fi
 grep -q '^/bin/bash' "$CHROOT/etc/shells" 2>/dev/null || echo /bin/bash >> "$CHROOT/etc/shells"
 
 # ---------------------------------------------------------------------------
-# 4. pack the rootfs tarball
+# 4. Capture the forge and reassemble a package-only Altitude root
+# ---------------------------------------------------------------------------
+log "capturing kernel, firmware and base userspace as Altitude packages"
+bash "$DISTRO_DIR/scripts/capture-altitude-system.sh" \
+  "$CHROOT" "$OUT_DIR/system-packages"
+for package in "$OUT_DIR"/system-packages/*.altpkg; do
+  ALTITUDE_REPO_ROOT="$OUT_DIR/repository" \
+    bash "$DISTRO_DIR/rootfs/bin/altrepo" add "$package"
+done
+ALTITUDE_REPO_ROOT="$OUT_DIR/repository" \
+  bash "$DISTRO_DIR/rootfs/bin/altrepo" verify
+
+log "assembling clean rootfs exclusively from signed Altitude packages"
+bash "$DISTRO_DIR/scripts/assemble-altitude-rootfs.sh" \
+  "$OUT_DIR/repository" "$FINAL_ROOT" \
+  altitude-base altitude-kernel altitude-firmware \
+  altitude-identity altitude-core altitude-services altitude-access
+mkdir -p "$FINAL_ROOT"/{dev,proc,run,sys,tmp}
+chmod 1777 "$FINAL_ROOT/tmp"
+mkdir -p "$FINAL_ROOT/var/lib/altitude/repository" \
+  "$FINAL_ROOT/etc/altitude/keys"
+cp -a "$OUT_DIR/repository/INDEX" "$OUT_DIR/repository/INDEX.sig" \
+  "$OUT_DIR/repository/packages" \
+  "$FINAL_ROOT/var/lib/altitude/repository/"
+cp "$OUT_DIR/repository/repository.pem" \
+  "$FINAL_ROOT/etc/altitude/keys/repository.pem"
+
+# Record every package in the seed BDB. The native engine is already present
+# in altitude-base, so this does not require apt or dpkg in the final root.
+for package in altitude-base altitude-kernel altitude-firmware \
+               altitude-identity altitude-core altitude-services \
+               altitude-access; do
+  metadata="$(awk -v wanted="$package" '
+    BEGIN { RS=""; FS="\n" }
+    {
+      name=""
+      for (i=1; i<=NF; i++)
+        if ($i ~ /^Package: /) name=substr($i,10)
+      if (name == wanted) print $0
+    }
+  ' "$OUT_DIR/repository/INDEX")"
+  version="$(printf '%s\n' "$metadata" | sed -n 's/^Version: *//p')"
+  filename="$(printf '%s\n' "$metadata" | sed -n 's/^Filename: *//p')"
+  checksum="$(printf '%s\n' "$metadata" | sed -n 's/^SHA256: *//p')"
+  description="$(printf '%s\n' "$metadata" | sed -n 's/^Description: *//p')"
+  if chroot "$FINAL_ROOT" /usr/bin/env BDB_PATH=/etc/minibash/bdb \
+     /bin/bdbc select packages --where "name=$package" |
+       tail -n +2 | grep -q .; then
+    chroot "$FINAL_ROOT" /usr/bin/env BDB_PATH=/etc/minibash/bdb \
+      /bin/bdbc update packages --where "name=$package" \
+      version="$version" state=installed \
+      source="file:///var/lib/altitude/repository/$filename" \
+      checksum="$checksum" description="$description" >/dev/null
+  else
+    chroot "$FINAL_ROOT" /usr/bin/env BDB_PATH=/etc/minibash/bdb \
+      /bin/bdbc insert packages name="$package" \
+      version="$version" state=installed \
+      source="file:///var/lib/altitude/repository/$filename" \
+      checksum="$checksum" description="$description" >/dev/null
+  fi
+done
+chroot "$FINAL_ROOT" /usr/bin/env BDB_PATH=/etc/minibash/bdb \
+  /bin/pkg verify
+
+# ---------------------------------------------------------------------------
+# 5. Pack the package-assembled rootfs tarball
 # ---------------------------------------------------------------------------
 cleanup
 trap - EXIT
 log "packing disk rootfs tarball -> $ROOTFS_TGZ"
-tar --numeric-owner --owner=0 --group=0 -czf "$ROOTFS_TGZ" -C "$CHROOT" .
+tar --numeric-owner --owner=0 --group=0 -czf "$ROOTFS_TGZ" -C "$FINAL_ROOT" .
 ls -lh "$ROOTFS_TGZ"
 log "done. boot initramfs: run build-disk.sh with SKIP_ROOTFS to (re)build it, then build-disk-image.sh"

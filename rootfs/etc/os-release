@@ -1,7 +1,6 @@
 NAME="Altitude Linux"
 PRETTY_NAME="Altitude Linux 0.1 (Basecamp)"
 ID=altitude
-ID_LIKE=debian
 VERSION_ID="0.1"
 VERSION="0.1 (Basecamp)"
 VERSION_CODENAME=basecamp

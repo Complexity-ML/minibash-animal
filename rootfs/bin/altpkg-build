@@ -3,6 +3,23 @@ set -euo pipefail
 
 die() { echo "altpkg-build: $*" >&2; exit 1; }
 field() { sed -n "s/^$1: *//p" "$2" | head -n 1; }
+safe_link() {
+  local rel="$1" target="$2" parent path part depth=0
+  case "$target" in /*) return 0 ;; esac
+  case "$rel" in */*) parent="${rel%/*}" ;; *) parent="" ;; esac
+  path="${parent:+$parent/}$target"
+  while [ -n "$path" ]; do
+    case "$path" in
+      */*) part="${path%%/*}"; path="${path#*/}" ;;
+      *) part="$path"; path="" ;;
+    esac
+    case "$part" in
+      ""|.) ;;
+      ..) [ "$depth" -gt 0 ] || return 1; depth=$((depth - 1)) ;;
+      *) depth=$((depth + 1)) ;;
+    esac
+  done
+}
 
 [ "$#" -eq 3 ] || die "usage: altpkg-build MANIFEST PAYLOAD_DIR OUTPUT.altpkg"
 manifest="$1"
@@ -14,9 +31,15 @@ case "$output" in
 esac
 [ -f "$manifest" ] || die "manifest missing: $manifest"
 [ -d "$payload" ] || die "payload directory missing: $payload"
-if find "$payload" ! -type d ! -type f -print | grep -q .; then
-  die "payload links and special files are not supported"
+if find "$payload" ! -type d ! -type f ! -type l -print | grep -q .; then
+  die "payload contains unsupported special files"
 fi
+while IFS= read -r link; do
+  target="$(readlink "$link")"
+  rel="${link#"$payload"/}"
+  safe_link "$rel" "$target" ||
+    die "unsafe symlink: $link -> $target"
+done < <(find "$payload" -type l -print)
 
 for key in Name Version Architecture Description; do
   [ -n "$(field "$key" "$manifest")" ] || die "manifest field missing: $key"
@@ -34,14 +57,22 @@ cp -a "$payload/." "$tmp/payload/"
 # macOS attaches xattrs that bsdtar serializes as AppleDouble `._*` entries.
 # They are host metadata, not package payload, and must never enter .altpkg.
 if command -v xattr >/dev/null 2>&1; then
-  xattr -cr "$tmp"
+  find "$tmp" ! -type l -exec xattr -c {} + 2>/dev/null || true
 fi
 (
   cd "$tmp"
   find payload -type f -print0 | sort -z |
     xargs -0r sha256sum > ALTITUDE/files.sha256
+  : > ALTITUDE/links.sha256
+  while IFS= read -r -d '' link; do
+    target="$(readlink "$link")"
+    printf '%s' "$target" | sha256sum |
+      awk -v path="$link" '{ print $1 "  " path }' \
+      >> ALTITUDE/links.sha256
+  done < <(find payload -type l -print0 | sort -z)
+  find payload -mindepth 1 -print | sort > ALTITUDE/paths
   if command -v xattr >/dev/null 2>&1; then
-    xattr -cr ALTITUDE payload
+    find ALTITUDE payload ! -type l -exec xattr -c {} + 2>/dev/null || true
   fi
   COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 \
     tar --no-xattrs -cf "$output" ALTITUDE payload

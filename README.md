@@ -1,9 +1,9 @@
 # Altitude Linux
 
 **Altitude Linux 0.1 "Basecamp"** est une distribution hybride Rust + C + Bash,
-pilotée par BDB. Elle utilise actuellement Debian comme socle de paquets et de
-compatibilité matérielle, mais expose sa propre identité, son init, son registre,
-son graphe de services, sa console d'administration et son cycle d'évolution.
+pilotée par BDB. Le système livré est assemblé uniquement depuis le dépôt signé
+Altitude et utilise son propre gestionnaire `pkg`, son init, son registre, son
+graphe de services, sa console d'administration et son cycle d'évolution.
 
 ```bash
 altitude
@@ -11,7 +11,7 @@ altitude --health
 ```
 
 ```text
-Linux kernel (paquet Debian connu-good aujourd'hui; noyau Altitude à terme)
+Linux kernel (paquet `altitude-kernel`; recette source Altitude à venir)
   -> initramfs minimal
     -> /init = minit (Rust, PID 1)
          · mount fs · hostname · lo up
@@ -173,9 +173,11 @@ minibash-update rollback
 Les composants propres à Altitude utilisent le format `.altpkg` v1 : manifeste
 strict, payload, sommes SHA-256, dépôt indexé et signatures Ed25519. Le rootfs
 installe actuellement `altitude-identity`, `altitude-core` et
-`altitude-services` depuis le dépôt Altitude embarqué. Debian reste
-provisoirement le fournisseur de bootstrap pour le kernel et les dépendances
-tierces; cette surface sera réduite paquet par paquet.
+`altitude-services`, ainsi que `altitude-access` pour la politique SSH, plus les
+snapshots `altitude-base`, `altitude-kernel` et `altitude-firmware`, depuis le
+dépôt Altitude embarqué. Une forge de bootstrap fournit encore certains
+binaires tiers; le rootfs livré ne contient ni APT, ni dpkg, ni état Debian et
+est reconstruit uniquement depuis le snapshot signé Altitude.
 
 `updated` utilise maintenant une table `boot_slots` A/B persistante. `stage`
 copie un kernel+initramfs vers le slot inactif, `commit` marque ce slot
@@ -240,13 +242,9 @@ out/altitude-linux-usb.img             # image USB native UEFI
 out/altitude-linux-disk.img            # image disque installable
 ```
 
-La V1 stable utilise un kernel Debian extrait de `linux-image-amd64`, parce qu'il
-boote correctement sur le HP OMEN avec notre initramfs. Le kernel custom reste
-dans `kernel/bzImage` et sert de laboratoire. Pour le recompiler :
-`BUILD_KERNEL=1`.
-
-Le script `scripts/fetch-debian-kernel.sh` télécharge le paquet kernel Debian et
-extrait seulement `vmlinuz`, sans installer le paquet ni générer d'initrd Debian.
+La V1 stable utilise le kernel validé sur le HP OMEN, capturé dans
+`altitude-kernel`. Le prochain palier compile ce kernel depuis une recette source
+Altitude verrouillée. Le kernel de laboratoire reste dans `kernel/bzImage`.
 
 Le script `build-desktop-payload.sh` construit le payload desktop séparé, sans
 le gonfler dans l'initramfs. `build-usb.sh` peut l'embarquer dans une deuxième
@@ -288,7 +286,7 @@ l'hôte sur `http://localhost:8080/`.
 ./tests/boot-smoke.sh
 ```
 
-Pour tester le kernel Debian connu-good avec notre initramfs en QEMU :
+Pour tester le kernel de compatibilité avec notre initramfs en QEMU :
 
 ```bash
 docker run --rm --platform linux/amd64 -v /Users/boris/Dev:/work \

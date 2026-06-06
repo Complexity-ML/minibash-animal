@@ -2,10 +2,14 @@
 
 ## Scope of version 1
 
-Altitude packages own Altitude-specific files. Debian `debootstrap` remains a
-temporary bootstrap provider for the kernel, libc and third-party software.
-Moving a component into an Altitude package removes it from the direct overlay;
-the bootstrap can then shrink without changing the installed-system contract.
+Debian `debootstrap` remains a temporary forge provider for third-party
+binaries. Its prepared filesystem is never packed directly into the image.
+Altitude captures it as `altitude-base`, `altitude-kernel` and
+`altitude-firmware`, signs those artifacts, then reconstructs a fresh root from
+the repository snapshot. The installed-system contract is therefore Altitude's
+package repository rather than a live Debian mirror. APT, dpkg and their state
+databases are removed from the delivered snapshot; `pkg` is the installed
+package-management interface.
 
 ## Package format
 
@@ -25,9 +29,10 @@ parent-directory traversal, invalid metadata and checksum mismatches.
 ## Repository and trust
 
 `altrepo` publishes packages under `packages/`, creates the stanza-based
-`INDEX`, and signs both packages and index with Ed25519. Installed systems only
-contain the public key in `/etc/altitude/keys/repository.pem`. The private key
-stays in the release environment and is excluded from git and images.
+`INDEX`, hashes each artifact with SHA-256, and signs that digest with Ed25519.
+Installed systems only contain the public key in
+`/etc/altitude/keys/repository.pem`. The private key stays in the release
+environment and is excluded from git and images.
 
 The default repository is local and embedded:
 
@@ -58,6 +63,7 @@ to use the existing A/B boot slots so a failed boot can roll back.
 
 1. Package every Altitude service and configuration file.
 2. Build a package dependency solver and an upgrade transaction.
-3. Repackage the kernel, firmware and base userspace.
-4. Generate the rootfs only from an Altitude repository snapshot.
+3. Build libc and base utilities from pinned source recipes instead of a
+   debootstrap forge.
+4. Build and configure the kernel from an Altitude-owned source recipe.
 5. Operate separate stable, testing and security repositories.

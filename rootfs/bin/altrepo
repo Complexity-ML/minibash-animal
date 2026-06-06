@@ -8,10 +8,21 @@ PUBLIC_KEY="${ALTITUDE_REPO_PUBLIC_KEY:-$REPO/repository.pem}"
 die() { echo "altrepo: $*" >&2; exit 1; }
 field() { sed -n "s/^$1: *//p" "$2" | head -n 1; }
 sign() {
-  local file="$1"
+  local file="$1" digest
   [ -f "$PRIVATE_KEY" ] || return 0
+  digest="$(mktemp)"
+  openssl dgst -sha256 -binary -out "$digest" "$file"
   openssl pkeyutl -sign -inkey "$PRIVATE_KEY" -rawin \
-    -in "$file" -out "$file.sig"
+    -in "$digest" -out "$file.sig"
+  rm -f "$digest"
+}
+verify_file() {
+  local file="$1" digest
+  digest="$(mktemp)"
+  openssl dgst -sha256 -binary -out "$digest" "$file"
+  openssl pkeyutl -verify -pubin -inkey "$PUBLIC_KEY" -rawin \
+    -in "$digest" -sigfile "$file.sig" >/dev/null
+  rm -f "$digest"
 }
 reindex() {
   local package tmp manifest name version arch description checksum filename
@@ -76,12 +87,10 @@ case "${1:-}" in
     ;;
   verify)
     [ -f "$PUBLIC_KEY" ] || die "public key missing"
-    openssl pkeyutl -verify -pubin -inkey "$PUBLIC_KEY" -rawin \
-      -in "$REPO/INDEX" -sigfile "$REPO/INDEX.sig" >/dev/null
+    verify_file "$REPO/INDEX"
     for package in "$REPO"/packages/*.altpkg; do
       [ -f "$package" ] || continue
-      openssl pkeyutl -verify -pubin -inkey "$PUBLIC_KEY" -rawin \
-        -in "$package" -sigfile "$package.sig" >/dev/null
+      verify_file "$package"
     done
     echo "altrepo: signatures verified"
     ;;

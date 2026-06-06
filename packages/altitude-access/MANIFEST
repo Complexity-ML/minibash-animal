@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-access
+Version: 0.1.0
+Architecture: all
+Description: Altitude administrative SSH access policy

@@ -9,6 +9,23 @@ ROOT="${ALTITUDE_ROOT:-/}"
 export BDB_PATH
 
 die() { echo "pkg: $*" >&2; exit 1; }
+safe_link() {
+  local rel="$1" target="$2" parent path part depth=0
+  case "$target" in /*) return 0 ;; esac
+  case "$rel" in */*) parent="${rel%/*}" ;; *) parent="" ;; esac
+  path="${parent:+$parent/}$target"
+  while [ -n "$path" ]; do
+    case "$path" in
+      */*) part="${path%%/*}"; path="${path#*/}" ;;
+      *) part="$path"; path="" ;;
+    esac
+    case "$part" in
+      ""|.) ;;
+      ..) [ "$depth" -gt 0 ] || return 1; depth=$((depth - 1)) ;;
+      *) depth=$((depth + 1)) ;;
+    esac
+  done
+}
 field() {
   local key="$1" file="$2"
   sed -n "s/^${key}: *//p" "$file" | head -n 1
@@ -63,20 +80,25 @@ fetch() {
   esac
 }
 verify_signature() {
-  local data="$1" signature="$2" public_key="$3"
+  local data="$1" signature="$2" public_key="$3" digest
   [ -n "$public_key" ] || return 0
   [ -f "$public_key" ] || die "trusted key missing: $public_key"
   [ -f "$signature" ] || die "signature missing for $(basename "$data")"
+  digest="$(mktemp)"
+  openssl dgst -sha256 -binary -out "$digest" "$data"
   openssl pkeyutl -verify -pubin -inkey "$public_key" -rawin \
-    -in "$data" -sigfile "$signature" >/dev/null 2>&1 ||
-    die "invalid signature: $(basename "$data")"
+    -in "$digest" -sigfile "$signature" >/dev/null 2>&1 || {
+      rm -f "$digest"
+      die "invalid signature: $(basename "$data")"
+    }
+  rm -f "$digest"
 }
 validate_archive() {
   local archive="$1" entry mode
   while read -r mode _; do
     case "${mode:0:1}" in
-      -|d) ;;
-      *) die "links and special files are forbidden in packages" ;;
+      -|d|l) ;;
+      *) die "unsupported special file in package" ;;
     esac
   done < <(tar -tvf "$archive")
   while IFS= read -r entry; do
@@ -114,10 +136,18 @@ install_file() {
   manifest="$tmp/ALTITUDE/MANIFEST"
   [ -f "$manifest" ] || die "ALTITUDE/MANIFEST missing"
   [ -f "$tmp/ALTITUDE/files.sha256" ] || die "ALTITUDE/files.sha256 missing"
+  [ -f "$tmp/ALTITUDE/links.sha256" ] || die "ALTITUDE/links.sha256 missing"
+  [ -f "$tmp/ALTITUDE/paths" ] || die "ALTITUDE/paths missing"
   check_manifest "$manifest"
-  if find "$tmp/payload" ! -type d ! -type f -print | grep -q .; then
-    die "payload contains links or special files"
+  if find "$tmp/payload" ! -type d ! -type f ! -type l -print | grep -q .; then
+    die "payload contains unsupported special files"
   fi
+  while IFS= read -r link; do
+    target="$(readlink "$link")"
+    rel="${link#"$tmp/payload"/}"
+    safe_link "$rel" "$target" ||
+      die "unsafe payload symlink: $link -> $target"
+  done < <(find "$tmp/payload" -type l -print)
   name="$(field Name "$manifest")"
   version="$(field Version "$manifest")"
   arch="$(field Architecture "$manifest")"
@@ -135,6 +165,13 @@ install_file() {
     got="$(sha256_file "$file")"
     [ "$got" = "$expected" ] || die "payload checksum mismatch: $rel"
   done < "$tmp/ALTITUDE/files.sha256"
+  while read -r expected rel; do
+    [ -n "$expected" ] || continue
+    link="$tmp/$rel"
+    [ -L "$link" ] || die "payload link missing: $rel"
+    got="$(printf '%s' "$(readlink "$link")" | sha256sum | awk '{print $1}')"
+    [ "$got" = "$expected" ] || die "payload link mismatch: $rel"
+  done < "$tmp/ALTITUDE/links.sha256"
 
   mkdir -p "$STATE_ROOT" "$backup"
   state="$STATE_ROOT/$name"
@@ -149,14 +186,35 @@ install_file() {
 
   (
     set -e
-    while read -r expected rel; do
-      rel="${rel#payload/}"
-      mkdir -p "$ROOT/$(dirname "$rel")"
-      cp -a "$tmp/payload/$rel" "$ROOT/$rel"
-      if [ "$(id -u)" -eq 0 ]; then
-        chown 0:0 "$ROOT/$rel"
-      fi
-    done < "$tmp/ALTITUDE/files.sha256"
+    if command -v rsync >/dev/null 2>&1; then
+      rsync -a --keep-dirlinks "$tmp/payload/" "$ROOT/"
+    else
+      while IFS= read -r path; do
+        rel="${path#payload/}"
+        source="$tmp/$path"
+        destination="$ROOT/$rel"
+        if [ -L "$source" ]; then
+          mkdir -p "$(dirname "$destination")"
+          [ ! -e "$destination" ] || [ -L "$destination" ] ||
+            die "path conflict: /$rel"
+          rm -f "$destination"
+          cp -a "$source" "$destination"
+        elif [ -d "$source" ]; then
+          mkdir -p "$destination"
+        elif [ -f "$source" ]; then
+          mkdir -p "$(dirname "$destination")"
+          [ ! -L "$destination" ] || rm -f "$destination"
+          cp -a "$source" "$destination"
+        fi
+      done < "$tmp/ALTITUDE/paths"
+    fi
+    if [ "$(id -u)" -eq 0 ]; then
+      while IFS= read -r rel; do
+        rel="${rel#payload/}"
+        [ -e "$ROOT/$rel" ] || [ -L "$ROOT/$rel" ] || continue
+        chown -h 0:0 "$ROOT/$rel"
+      done < "$tmp/ALTITUDE/paths"
+    fi
   ) || {
     cp -a "$backup/." "$ROOT/" 2>/dev/null || true
     die "installation failed; previous files restored"
@@ -164,7 +222,8 @@ install_file() {
 
   rm -rf "$state"
   mkdir -p "$state"
-  cp "$manifest" "$tmp/ALTITUDE/files.sha256" "$state/"
+  cp "$manifest" "$tmp/ALTITUDE/files.sha256" \
+    "$tmp/ALTITUDE/links.sha256" "$tmp/ALTITUDE/paths" "$state/"
   checksum="$(sha256_file "$archive")"
   printf '%s\n' "$checksum" > "$state/package.sha256"
   printf '%s\n' "$source" > "$state/source"
@@ -304,6 +363,17 @@ case "${1:-}" in
           failed=1
         fi
       done < "$state/files.sha256"
+      while read -r expected rel; do
+        rel="${rel#payload/}"
+        link="$ROOT/$rel"
+        got=""
+        [ ! -L "$link" ] ||
+          got="$(printf '%s' "$(readlink "$link")" | sha256sum | awk '{print $1}')"
+        if [ "$got" != "$expected" ]; then
+          echo "pkg: changed link $name: /$rel" >&2
+          failed=1
+        fi
+      done < "$state/links.sha256"
     done
     [ "$failed" -eq 0 ] || exit 1
     echo "pkg: installed files verified"
@@ -321,6 +391,19 @@ case "${1:-}" in
         die "refusing to remove modified file: /$rel"
       rm -f "$file"
     done < "$state/files.sha256"
+    while read -r expected rel; do
+      rel="${rel#payload/}"
+      link="$ROOT/$rel"
+      [ -L "$link" ] || continue
+      got="$(printf '%s' "$(readlink "$link")" | sha256sum | awk '{print $1}')"
+      [ "$got" = "$expected" ] ||
+        die "refusing to remove modified link: /$rel"
+      rm -f "$link"
+    done < "$state/links.sha256"
+    tac "$state/paths" | while IFS= read -r rel; do
+      rel="${rel#payload/}"
+      [ -d "$ROOT/$rel" ] && rmdir "$ROOT/$rel" 2>/dev/null || true
+    done
     rm -rf "$state"
     "$BDB_BIN" update packages --where "name=$name" state=removed >/dev/null || true
     echo "pkg: removed $name"

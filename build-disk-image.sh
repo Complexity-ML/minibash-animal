@@ -10,7 +10,7 @@ DISTRO_DIR="${DISTRO_DIR:-/work/minibash-linux}"
 OUT_DIR="${OUT_DIR:-$DISTRO_DIR/out}"
 ROOTFS_TGZ="${ROOTFS_TGZ:-$OUT_DIR/minibash-rootfs.tar.gz}"
 BOOT_INITRAMFS="${BOOT_INITRAMFS:-$OUT_DIR/minibash-boot.cpio.gz}"
-KERNEL_IMAGE="${KERNEL_IMAGE:-$OUT_DIR/debian-vmlinuz}"
+KERNEL_IMAGE="${KERNEL_IMAGE:-$OUT_DIR/altitude-vmlinuz}"
 DISK_IMG="${DISK_IMG:-$OUT_DIR/altitude-linux-disk.img}"
 IMG_SIZE_MB="${IMG_SIZE_MB:-5120}"
 ESP_MB="${ESP_MB:-256}"
@@ -26,14 +26,13 @@ rm -rf "$ROOTDIR"; mkdir -p "$ROOTDIR"
 log "extracting rootfs tarball"
 tar -xzf "$ROOTFS_TGZ" -C "$ROOTDIR"
 
-# --- boot: use the rootfs's OWN kernel + Debian initrd.img (udev auto-detects
-#     storage, so it boots on any controller) -------------------------------
+# --- boot: use the rootfs's own packaged kernel + initrd --------------------
 ver="$(ls "$ROOTDIR/lib/modules" | head -1)"
 KERNEL_IMAGE="${KERNEL_IMAGE_OVERRIDE:-$ROOTDIR/boot/vmlinuz-$ver}"
 INITRD_IMAGE="${INITRD_IMAGE_OVERRIDE:-$ROOTDIR/boot/initrd.img-$ver}"
 [ -f "$KERNEL_IMAGE" ] || { echo "no kernel /boot/vmlinuz-$ver in rootfs" >&2; exit 1; }
-[ -f "$INITRD_IMAGE" ] || { echo "no Debian initrd /boot/initrd.img-$ver in rootfs" >&2; exit 1; }
-log "kernel $ver + Debian initrd"
+[ -f "$INITRD_IMAGE" ] || { echo "no initrd /boot/initrd.img-$ver in rootfs" >&2; exit 1; }
+log "Altitude kernel $ver + initrd"
 
 # --- geometry ---------------------------------------------------------------
 esp_sectors=$((ESP_MB * 1024 * 1024 / 512))

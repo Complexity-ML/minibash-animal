@@ -7,6 +7,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 mkdir -p "$TMP/payload/usr/share/altitude"
 echo "Basecamp" > "$TMP/payload/usr/share/altitude/release"
+ln -s release "$TMP/payload/usr/share/altitude/current"
 cat > "$TMP/MANIFEST" <<'EOF'
 Format: altitude-package-1
 Name: altitude-test
@@ -23,9 +24,9 @@ ALTITUDE_REPO_ROOT="$TMP/repository" bash "$ROOT/rootfs/bin/altrepo" add \
   "$TMP/altitude-test-1.0.0-all.altpkg"
 ALTITUDE_REPO_ROOT="$TMP/repository" bash "$ROOT/rootfs/bin/altrepo" verify
 
-# Packages cannot smuggle symlinks into the destination root.
+# Packages cannot smuggle escaping symlinks into the destination root.
 mkdir -p "$TMP/link-payload"
-ln -s /etc/passwd "$TMP/link-payload/passwd"
+ln -s ../etc/passwd "$TMP/link-payload/passwd"
 set +e
 bash "$ROOT/rootfs/bin/altpkg-build" "$TMP/MANIFEST" "$TMP/link-payload" \
   "$TMP/invalid.altpkg" >/dev/null 2>&1
@@ -50,6 +51,7 @@ BDB_BIN="$TMP/bdbc" BDB_PATH="$TMP/db" ALTITUDE_ROOT="$TMP/root" \
   ALTITUDE_PKG_STATE="$TMP/state" ALTITUDE_REPO_CONF="$TMP/etc/repositories.conf" \
   bash "$ROOT/rootfs/bin/pkg" install altitude-test
 grep -qx Basecamp "$TMP/root/usr/share/altitude/release"
+[ "$(readlink "$TMP/root/usr/share/altitude/current")" = release ]
 BDB_BIN="$TMP/bdbc" BDB_PATH="$TMP/db" ALTITUDE_ROOT="$TMP/root" \
   ALTITUDE_PKG_STATE="$TMP/state" ALTITUDE_REPO_CONF="$TMP/etc/repositories.conf" \
   bash "$ROOT/rootfs/bin/pkg" verify altitude-test
@@ -61,6 +63,16 @@ BDB_BIN="$TMP/bdbc" BDB_PATH="$TMP/db" ALTITUDE_ROOT="$TMP/root" \
   bash "$ROOT/rootfs/bin/pkg" check-updates | grep -q 'system packages are current'
 
 printf tampered > "$TMP/root/usr/share/altitude/release"
+set +e
+BDB_BIN="$TMP/bdbc" BDB_PATH="$TMP/db" ALTITUDE_ROOT="$TMP/root" \
+  ALTITUDE_PKG_STATE="$TMP/state" ALTITUDE_REPO_CONF="$TMP/etc/repositories.conf" \
+  bash "$ROOT/rootfs/bin/pkg" verify altitude-test >/dev/null 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ]
+echo Basecamp > "$TMP/root/usr/share/altitude/release"
+rm "$TMP/root/usr/share/altitude/current"
+ln -s changed "$TMP/root/usr/share/altitude/current"
 set +e
 BDB_BIN="$TMP/bdbc" BDB_PATH="$TMP/db" ALTITUDE_ROOT="$TMP/root" \
   ALTITUDE_PKG_STATE="$TMP/state" ALTITUDE_REPO_CONF="$TMP/etc/repositories.conf" \
