@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-core
+Version: 0.1.0
+Architecture: amd64
+Description: Altitude BDB control plane and package tools

@@ -147,8 +147,20 @@ désactivé par défaut), `worker` (one-shot), `installer` (helper manuel).
 
 ```bash
 pkg list
-pkg install NAME VERSION /path/pkg.tar [sha256]
+pkg search [TERM]
+pkg info NAME
+pkg refresh
+pkg check-updates
+pkg install NAME
+pkg upgrade [NAME]
+pkg install-file /path/package.altpkg
+pkg verify [NAME]
 pkg remove NAME
+
+altrepo init
+altrepo keygen
+altrepo add /path/package.altpkg
+altrepo verify
 
 minibash-update list
 minibash-update slots
@@ -157,6 +169,13 @@ minibash-update commit UPDATE_ID
 minibash-update mark-good SLOT
 minibash-update rollback
 ```
+
+Les composants propres à Altitude utilisent le format `.altpkg` v1 : manifeste
+strict, payload, sommes SHA-256, dépôt indexé et signatures Ed25519. Le rootfs
+installe actuellement `altitude-identity`, `altitude-core` et
+`altitude-services` depuis le dépôt Altitude embarqué. Debian reste
+provisoirement le fournisseur de bootstrap pour le kernel et les dépendances
+tierces; cette surface sera réduite paquet par paquet.
 
 `updated` utilise maintenant une table `boot_slots` A/B persistante. `stage`
 copie un kernel+initramfs vers le slot inactif, `commit` marque ce slot
@@ -288,7 +307,9 @@ docker run --rm --platform linux/amd64 -v /Users/boris/Dev:/work \
 - `rootfs/bin/bashsvc`: client de contrôle du superviseur.
 - `rootfs/bin/bdbctl` : console unifiée (services, réseau, stockage, noyau, mises à jour).
 - `rootfs/bin/minibash-install`: première brique installateur disque.
-- `rootfs/bin/pkg`    : package manager minimal.
+- `rootfs/bin/pkg`    : gestionnaire de paquets Altitude.
+- `rootfs/bin/altpkg-build`: constructeur du format `.altpkg`.
+- `rootfs/bin/altrepo`: indexation et signature du dépôt Altitude.
 - `rootfs/bin/minibash-update`: staging metadata d'upgrades.
 - `rootfs/bin/desktop`: dashboard console/terminal pour le desktop minimal.
 - `rootfs/bin/desktop-install`: installe le payload desktop depuis la partition data USB.

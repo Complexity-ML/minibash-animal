@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build the DISK-ROOT root filesystem as a real, apt-capable Debian base
-# (debootstrap) with the minibash identity layered on top: minit as PID 1, the
-# bdb service database, minibash tools/services, SSH + WiFi pre-seeded.
+# Build the Altitude disk root filesystem. Debian debootstrap is currently the
+# bootstrap provider for third-party binaries; Altitude-owned files are built,
+# signed and installed from the native Altitude package repository.
 #
 # Unlike the RAM model (hand-copied files), this is a full Debian install on
 # disk -> heavy desktops (GNOME) become a live `apt install` over SSH afterwards.
@@ -16,7 +16,7 @@ CHROOT="${CHROOT:-/tmp/mb-debian-root}"
 SUITE="${SUITE:-trixie}"
 MIRROR="${MIRROR:-http://deb.debian.org/debian}"
 
-log() { printf '[minibash:debroot] %s\n' "$*"; }
+log() { printf '[altitude:rootfs] %s\n' "$*"; }
 inchroot() { chroot "$CHROOT" /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin DEBIAN_FRONTEND=noninteractive "$@"; }
 
 # ---------------------------------------------------------------------------
@@ -160,15 +160,15 @@ inchroot apt-get clean
 rm -rf "$CHROOT"/var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 3. minibash identity overlay
+# 3. Altitude bootstrap overlay
 # ---------------------------------------------------------------------------
-log "overlaying minibash (init, bdb, services, tools)"
-# minibash filesystem bits (services, tools, bdb seed, configs). We copy
+log "overlaying Altitude bootstrap (init, bdb, services, package manager)"
+# Altitude filesystem bits (services, tools, bdb seed, configs). We copy
 # selectively so we don't clobber Debian's system users/PAM/etc.
 for p in services bin/altitude bin/bdb bin/bdbql bin/bdbsh bin/bdbctl bin/bdbreg bin/bdbconf bin/bashsvc bin/login bin/passwd bin/desktop bin/desktop-install \
-         bin/pkg bin/minibash-install bin/minibash-update bin/gpu bin/wifi \
+         bin/pkg bin/altpkg-build bin/altrepo bin/minibash-install bin/minibash-update bin/gpu bin/wifi \
          bin/netfix bin/wifidiag bin/minibash-services bin/minibash-desktop-warmup \
-         etc/minibash etc/os-release etc/lsb-release etc/hostname etc/issue etc/shells etc/NetworkManager etc/iwd etc/lightdm etc/polkit-1 etc/sudoers.d \
+         etc/altitude etc/minibash etc/os-release etc/lsb-release etc/hostname etc/issue etc/shells etc/NetworkManager etc/iwd etc/lightdm etc/polkit-1 etc/sudoers.d \
          etc/modprobe.d/iwl.conf etc/fstab etc/xdg usr/share/applications usr/src/minibash; do
   if [ -e "$DISTRO_DIR/rootfs/$p" ]; then
     mkdir -p "$CHROOT/$(dirname "$p")"
@@ -183,6 +183,22 @@ if [ -f "$CHROOT/usr/src/minibash/bdbc.c" ]; then
   log "building bdbc (C bdb engine)"
   inchroot gcc -O2 -Wall -Wextra -o /bin/bdbc /usr/src/minibash/bdbc.c
 fi
+
+# Build the first Altitude-owned packages, embed the public repository and
+# install from it. The private signing key remains outside the image under out/.
+log "building signed Altitude package repository"
+ALTITUDE_PACKAGE_OUT="$OUT_DIR/packages" \
+ALTITUDE_REPO_ROOT="$OUT_DIR/repository" \
+  bash "$DISTRO_DIR/scripts/build-altitude-packages.sh"
+mkdir -p "$CHROOT/var/lib/altitude/repository" "$CHROOT/etc/altitude/keys"
+cp -a "$OUT_DIR/repository/INDEX" "$OUT_DIR/repository/INDEX.sig" \
+  "$OUT_DIR/repository/packages" "$CHROOT/var/lib/altitude/repository/"
+cp "$OUT_DIR/repository/repository.pem" \
+  "$CHROOT/etc/altitude/keys/repository.pem"
+log "installing Altitude-owned rootfs components from .altpkg"
+for package in altitude-identity altitude-core altitude-services; do
+  inchroot env BDB_PATH=/etc/minibash/bdb /bin/pkg install "$package"
+done
 
 # Desktop services in the native bdb. With GNOME pre-baked, enable graphical
 # services. Without it, leave them down for a clean console boot.
@@ -211,7 +227,9 @@ if [ -f "$DISTRO_DIR/rust/bdbboot/Cargo.toml" ]; then
   ( cd "$DISTRO_DIR/rust/bdbboot" && cargo build --release ) || true
   cp "$DISTRO_DIR/rust/bdbboot/target/release/bdbboot" "$CHROOT/bin/bdbboot" 2>/dev/null || true
 fi
-chmod +x "$CHROOT"/services/*.sh "$CHROOT"/bin/bdb "$CHROOT"/bin/bdbql "$CHROOT"/bin/bdbsh "$CHROOT"/bin/bashsvc \
+chmod +x "$CHROOT"/services/*.sh "$CHROOT"/bin/altitude "$CHROOT"/bin/bdb "$CHROOT"/bin/bdbql "$CHROOT"/bin/bdbsh \
+         "$CHROOT"/bin/bdbctl "$CHROOT"/bin/bdbreg "$CHROOT"/bin/bdbconf "$CHROOT"/bin/bashsvc \
+         "$CHROOT"/bin/pkg "$CHROOT"/bin/altpkg-build "$CHROOT"/bin/altrepo \
          "$CHROOT"/bin/login "$CHROOT"/bin/passwd "$CHROOT"/bin/desktop "$CHROOT"/bin/gpu \
          "$CHROOT"/bin/wifi "$CHROOT"/bin/netfix "$CHROOT"/bin/wifidiag \
          "$CHROOT"/bin/minibash-services "$CHROOT"/bin/minibash-desktop-warmup 2>/dev/null || true

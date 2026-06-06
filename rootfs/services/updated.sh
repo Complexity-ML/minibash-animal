@@ -4,11 +4,14 @@ set -u
 BDB_PATH="${BDB_PATH:-/var/bdb}"
 export BDB_PATH
 
-mkdir -p /var/lib/minibash/updates /var/lib/minibash/staged
-echo "updated: update watcher online"
+mkdir -p /var/lib/altitude/updates /var/lib/altitude/staged
+echo "updated: Altitude signed update watcher online"
 while true; do
-  staged="$(/bin/bdb dump updates 2>/dev/null | tail -n +2 | awk -F '\t' '$3 == "staged" { n++ } END { print n + 0 }')"
-  committed="$(/bin/bdb dump updates 2>/dev/null | tail -n +2 | awk -F '\t' '$3 == "committed" { n++ } END { print n + 0 }')"
-  echo "updated: staged=${staged} committed=${committed}"
-  sleep 30
+  if output="$(/bin/pkg check-updates 2>&1)"; then
+    available="$(printf '%s\n' "$output" | grep -c -- ' -> ' || true)"
+    echo "updated: repository=verified available=${available}"
+  else
+    echo "updated: repository=failed"
+  fi
+  sleep 300
 done

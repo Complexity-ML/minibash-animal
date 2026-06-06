@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO="${ALTITUDE_REPO_ROOT:-/var/lib/altitude/repository}"
+PRIVATE_KEY="${ALTITUDE_REPO_PRIVATE_KEY:-$REPO/private/repository.pem}"
+PUBLIC_KEY="${ALTITUDE_REPO_PUBLIC_KEY:-$REPO/repository.pem}"
+
+die() { echo "altrepo: $*" >&2; exit 1; }
+field() { sed -n "s/^$1: *//p" "$2" | head -n 1; }
+sign() {
+  local file="$1"
+  [ -f "$PRIVATE_KEY" ] || return 0
+  openssl pkeyutl -sign -inkey "$PRIVATE_KEY" -rawin \
+    -in "$file" -out "$file.sig"
+}
+reindex() {
+  local package tmp manifest name version arch description checksum filename
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' RETURN
+  : > "$REPO/INDEX.new"
+  for package in "$REPO"/packages/*.altpkg; do
+    [ -f "$package" ] || continue
+    rm -rf "$tmp/ALTITUDE"
+    tar -xf "$package" -C "$tmp" ALTITUDE/MANIFEST
+    manifest="$tmp/ALTITUDE/MANIFEST"
+    name="$(field Name "$manifest")"
+    version="$(field Version "$manifest")"
+    arch="$(field Architecture "$manifest")"
+    description="$(field Description "$manifest")"
+    checksum="$(sha256sum "$package" | awk '{print $1}')"
+    filename="packages/$(basename "$package")"
+    {
+      echo "Package: $name"
+      echo "Version: $version"
+      echo "Architecture: $arch"
+      echo "Filename: $filename"
+      echo "SHA256: $checksum"
+      echo "Description: $description"
+      echo
+    } >> "$REPO/INDEX.new"
+  done
+  mv "$REPO/INDEX.new" "$REPO/INDEX"
+  sign "$REPO/INDEX"
+}
+
+case "${1:-}" in
+  init)
+    mkdir -p "$REPO/packages" "$REPO/private"
+    chmod 700 "$REPO/private"
+    [ -f "$REPO/INDEX" ] || : > "$REPO/INDEX"
+    echo "altrepo: initialized $REPO"
+    ;;
+  keygen)
+    mkdir -p "$REPO/packages" "$REPO/private"
+    chmod 700 "$REPO/private"
+    [ ! -e "$PRIVATE_KEY" ] || die "private key already exists: $PRIVATE_KEY"
+    openssl genpkey -algorithm ED25519 -out "$PRIVATE_KEY"
+    chmod 600 "$PRIVATE_KEY"
+    openssl pkey -in "$PRIVATE_KEY" -pubout -out "$PUBLIC_KEY"
+    echo "altrepo: generated Ed25519 repository key"
+    ;;
+  add)
+    package="${2:?missing .altpkg file}"
+    [ -f "$package" ] || die "package missing: $package"
+    mkdir -p "$REPO/packages"
+    destination="$REPO/packages/$(basename "$package")"
+    cp "$package" "$destination"
+    sign "$destination"
+    reindex
+    echo "altrepo: published $(basename "$package")"
+    ;;
+  index)
+    mkdir -p "$REPO/packages"
+    reindex
+    echo "altrepo: index rebuilt"
+    ;;
+  verify)
+    [ -f "$PUBLIC_KEY" ] || die "public key missing"
+    openssl pkeyutl -verify -pubin -inkey "$PUBLIC_KEY" -rawin \
+      -in "$REPO/INDEX" -sigfile "$REPO/INDEX.sig" >/dev/null
+    for package in "$REPO"/packages/*.altpkg; do
+      [ -f "$package" ] || continue
+      openssl pkeyutl -verify -pubin -inkey "$PUBLIC_KEY" -rawin \
+        -in "$package" -sigfile "$package.sig" >/dev/null
+    done
+    echo "altrepo: signatures verified"
+    ;;
+  help|-h|--help|"")
+    echo "usage: altrepo {init|keygen|add PACKAGE.altpkg|index|verify}"
+    ;;
+  *) die "unknown command: $1" ;;
+esac

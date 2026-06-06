@@ -1,0 +1,6 @@
+bin/altitude
+etc/os-release
+etc/lsb-release
+etc/hostname
+etc/issue
+etc/minibash/VERSION

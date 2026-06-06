@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-services
+Version: 0.1.0
+Architecture: all
+Description: Altitude BDB-managed system services

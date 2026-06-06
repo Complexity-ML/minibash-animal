@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+die() { echo "altpkg-build: $*" >&2; exit 1; }
+field() { sed -n "s/^$1: *//p" "$2" | head -n 1; }
+
+[ "$#" -eq 3 ] || die "usage: altpkg-build MANIFEST PAYLOAD_DIR OUTPUT.altpkg"
+manifest="$1"
+payload="$2"
+output="$3"
+case "$output" in
+  /*) ;;
+  *) output="$(pwd)/$output" ;;
+esac
+[ -f "$manifest" ] || die "manifest missing: $manifest"
+[ -d "$payload" ] || die "payload directory missing: $payload"
+if find "$payload" ! -type d ! -type f -print | grep -q .; then
+  die "payload links and special files are not supported"
+fi
+
+for key in Name Version Architecture Description; do
+  [ -n "$(field "$key" "$manifest")" ] || die "manifest field missing: $key"
+done
+name="$(field Name "$manifest")"
+version="$(field Version "$manifest")"
+[[ "$name" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || die "invalid package name: $name"
+[[ "$version" =~ ^[A-Za-z0-9][A-Za-z0-9.+:~-]*$ ]] || die "invalid version: $version"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/ALTITUDE" "$tmp/payload" "$(dirname "$output")"
+cp "$manifest" "$tmp/ALTITUDE/MANIFEST"
+cp -a "$payload/." "$tmp/payload/"
+# macOS attaches xattrs that bsdtar serializes as AppleDouble `._*` entries.
+# They are host metadata, not package payload, and must never enter .altpkg.
+if command -v xattr >/dev/null 2>&1; then
+  xattr -cr "$tmp"
+fi
+(
+  cd "$tmp"
+  find payload -type f -print0 | sort -z |
+    xargs -0r sha256sum > ALTITUDE/files.sha256
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -cr ALTITUDE payload
+  fi
+  COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 \
+    tar --no-xattrs -cf "$output" ALTITUDE payload
+)
+if command -v xattr >/dev/null 2>&1; then
+  xattr -c "$output"
+fi
+echo "altpkg-build: $name $version -> $output"

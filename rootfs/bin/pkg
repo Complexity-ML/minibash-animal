@@ -2,55 +2,329 @@
 set -euo pipefail
 
 BDB_PATH="${BDB_PATH:-/var/bdb}"
-PKG_ROOT="${PKG_ROOT:-/var/lib/minibash/packages}"
+BDB_BIN="${BDB_BIN:-/bin/bdb}"
+STATE_ROOT="${ALTITUDE_PKG_STATE:-/var/lib/altitude/packages}"
+REPO_CONF="${ALTITUDE_REPO_CONF:-/etc/altitude/repositories.conf}"
+ROOT="${ALTITUDE_ROOT:-/}"
 export BDB_PATH
 
+die() { echo "pkg: $*" >&2; exit 1; }
+field() {
+  local key="$1" file="$2"
+  sed -n "s/^${key}: *//p" "$file" | head -n 1
+}
 usage() {
   cat <<'USAGE'
 usage: pkg list
-       pkg install NAME VERSION TAR_PATH [CHECKSUM]
+       pkg search [TERM]
+       pkg info NAME
+       pkg refresh
+       pkg check-updates
+       pkg install NAME
+       pkg upgrade [NAME]
+       pkg install-file PACKAGE.altpkg [SIGNATURE]
+       pkg verify [NAME]
        pkg remove NAME
 
-Packages are simple tar archives extracted under /opt/pkg/NAME.
-The package database is the bdb table `packages`.
+Altitude packages are installed from signed repositories configured in
+/etc/altitude/repositories.conf.
 USAGE
+}
+sha256_file() { sha256sum "$1" | awk '{print $1}'; }
+package_record() {
+  local name="$1" version="$2" state="$3" source="$4" checksum="$5" description="$6"
+  if "$BDB_BIN" select packages --where "name=$name" | tail -n +2 | grep -q .; then
+    "$BDB_BIN" update packages --where "name=$name" version="$version" state="$state" \
+      source="$source" checksum="$checksum" description="$description" >/dev/null
+  else
+    "$BDB_BIN" insert packages name="$name" version="$version" state="$state" \
+      source="$source" checksum="$checksum" description="$description" >/dev/null
+  fi
+}
+repo_value() {
+  local key="$1"
+  [ -f "$REPO_CONF" ] || die "repository configuration missing: $REPO_CONF"
+  field "$key" "$REPO_CONF"
+}
+fetch() {
+  local source="$1" output="$2"
+  case "$source" in
+    file://*) cp "${source#file://}" "$output" ;;
+    http://*|https://*)
+      if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$source" -o "$output"
+      elif command -v wget >/dev/null 2>&1; then
+        wget -qO "$output" "$source"
+      else
+        die "curl or wget is required for remote repositories"
+      fi
+      ;;
+    *) cp "$source" "$output" ;;
+  esac
+}
+verify_signature() {
+  local data="$1" signature="$2" public_key="$3"
+  [ -n "$public_key" ] || return 0
+  [ -f "$public_key" ] || die "trusted key missing: $public_key"
+  [ -f "$signature" ] || die "signature missing for $(basename "$data")"
+  openssl pkeyutl -verify -pubin -inkey "$public_key" -rawin \
+    -in "$data" -sigfile "$signature" >/dev/null 2>&1 ||
+    die "invalid signature: $(basename "$data")"
+}
+validate_archive() {
+  local archive="$1" entry mode
+  while read -r mode _; do
+    case "${mode:0:1}" in
+      -|d) ;;
+      *) die "links and special files are forbidden in packages" ;;
+    esac
+  done < <(tar -tvf "$archive")
+  while IFS= read -r entry; do
+    case "$entry" in
+      ALTITUDE|ALTITUDE/*|payload|payload/*) ;;
+      *) die "invalid archive entry: $entry" ;;
+    esac
+    case "/$entry/" in
+      */../*|*/./*) die "unsafe archive path: $entry" ;;
+    esac
+  done < <(tar -tf "$archive")
+}
+check_manifest() {
+  local manifest="$1" key value
+  for key in Name Version Architecture Description; do
+    value="$(field "$key" "$manifest")"
+    [ -n "$value" ] || die "manifest field missing: $key"
+  done
+  value="$(field Name "$manifest")"
+  [[ "$value" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || die "invalid package name: $value"
+  value="$(field Version "$manifest")"
+  [[ "$value" =~ ^[A-Za-z0-9][A-Za-z0-9.+:~-]*$ ]] || die "invalid version: $value"
+}
+install_file() {
+  local archive="$1" signature="${2:-}" trusted_key="${3:-}" source="${4:-$1}"
+  [ -f "$archive" ] || die "package missing: $archive"
+  validate_archive "$archive"
+  [ -z "$trusted_key" ] || verify_signature "$archive" "$signature" "$trusted_key"
+
+  local tmp manifest name version arch description checksum state backup file rel expected got
+  tmp="$(mktemp -d)"
+  backup="$tmp/backup"
+  trap 'rm -rf "$tmp"' RETURN
+  tar -xf "$archive" -C "$tmp"
+  manifest="$tmp/ALTITUDE/MANIFEST"
+  [ -f "$manifest" ] || die "ALTITUDE/MANIFEST missing"
+  [ -f "$tmp/ALTITUDE/files.sha256" ] || die "ALTITUDE/files.sha256 missing"
+  check_manifest "$manifest"
+  if find "$tmp/payload" ! -type d ! -type f -print | grep -q .; then
+    die "payload contains links or special files"
+  fi
+  name="$(field Name "$manifest")"
+  version="$(field Version "$manifest")"
+  arch="$(field Architecture "$manifest")"
+  description="$(field Description "$manifest")"
+  case "$arch" in
+    all|amd64|x86_64) ;;
+    *) die "unsupported architecture: $arch" ;;
+  esac
+
+  while read -r expected rel; do
+    [ -n "$expected" ] || continue
+    case "$rel" in payload/*) ;; *) die "invalid checksum path: $rel" ;; esac
+    file="$tmp/$rel"
+    [ -f "$file" ] || die "payload file missing: $rel"
+    got="$(sha256_file "$file")"
+    [ "$got" = "$expected" ] || die "payload checksum mismatch: $rel"
+  done < "$tmp/ALTITUDE/files.sha256"
+
+  mkdir -p "$STATE_ROOT" "$backup"
+  state="$STATE_ROOT/$name"
+  if [ -f "$manifest" ]; then
+    while read -r expected rel; do
+      rel="${rel#payload/}"
+      [ -e "$ROOT/$rel" ] || continue
+      mkdir -p "$backup/$(dirname "$rel")"
+      cp -a "$ROOT/$rel" "$backup/$rel"
+    done < "$tmp/ALTITUDE/files.sha256"
+  fi
+
+  (
+    set -e
+    while read -r expected rel; do
+      rel="${rel#payload/}"
+      mkdir -p "$ROOT/$(dirname "$rel")"
+      cp -a "$tmp/payload/$rel" "$ROOT/$rel"
+      if [ "$(id -u)" -eq 0 ]; then
+        chown 0:0 "$ROOT/$rel"
+      fi
+    done < "$tmp/ALTITUDE/files.sha256"
+  ) || {
+    cp -a "$backup/." "$ROOT/" 2>/dev/null || true
+    die "installation failed; previous files restored"
+  }
+
+  rm -rf "$state"
+  mkdir -p "$state"
+  cp "$manifest" "$tmp/ALTITUDE/files.sha256" "$state/"
+  checksum="$(sha256_file "$archive")"
+  printf '%s\n' "$checksum" > "$state/package.sha256"
+  printf '%s\n' "$source" > "$state/source"
+  package_record "$name" "$version" installed "$source" "$checksum" "$description"
+  echo "pkg: installed $name $version"
+}
+load_index() {
+  local repo key tmp
+  [ -f "$REPO_CONF" ] || die "repository configuration missing: $REPO_CONF"
+  repo="$(repo_value Location)"
+  key="$(repo_value Public-Key)"
+  [ -n "$repo" ] || die "repository Location is empty"
+  tmp="$(mktemp -d)"
+  fetch "${repo%/}/INDEX" "$tmp/INDEX"
+  if [ -n "$key" ]; then
+    fetch "${repo%/}/INDEX.sig" "$tmp/INDEX.sig"
+    verify_signature "$tmp/INDEX" "$tmp/INDEX.sig" "$key"
+  fi
+  printf '%s\n%s\n%s\n' "$tmp" "$repo" "$key"
+}
+prepare_index() {
+  local data
+  data="$(load_index)"
+  INDEX_TMP="$(printf '%s\n' "$data" | sed -n '1p')"
+  INDEX_REPO="$(printf '%s\n' "$data" | sed -n '2p')"
+  INDEX_KEY="$(printf '%s\n' "$data" | sed -n '3p')"
+}
+index_stanza() {
+  local index="$1" wanted="$2"
+  awk -v wanted="$wanted" '
+    BEGIN { RS=""; FS="\n" }
+    {
+      name=""
+      for (i=1; i<=NF; i++)
+        if ($i ~ /^Package: /) name=substr($i,10)
+      if (name == wanted) print $0
+    }
+  ' "$index" | tail -n 7
 }
 
 case "${1:-}" in
   list)
-    /bin/bdb select packages
+    "$BDB_BIN" select packages
+    ;;
+  search)
+    prepare_index
+    term="${2:-}"
+    awk -v term="$term" '
+      /^Package: / { package=substr($0,10) }
+      /^Version: / { version=substr($0,10) }
+      /^Description: / {
+        description=substr($0,14)
+        if (term == "" || index(package " " description, term))
+          printf "%-28s %-14s %s\n", package, version, description
+      }
+    ' "$INDEX_TMP/INDEX"
+    rm -rf "$INDEX_TMP"
+    ;;
+  info)
+    name="${2:?missing package name}"
+    prepare_index
+    stanza="$(index_stanza "$INDEX_TMP/INDEX" "$name")"
+    rm -rf "$INDEX_TMP"
+    [ -n "$stanza" ] || die "package not found: $name"
+    printf '%s\n' "$stanza"
+    ;;
+  refresh)
+    prepare_index
+    packages="$(grep -c '^Package: ' "$INDEX_TMP/INDEX" || true)"
+    rm -rf "$INDEX_TMP"
+    echo "pkg: signed repository metadata verified ($packages packages)"
+    ;;
+  check-updates)
+    prepare_index
+    available=0
+    while IFS= read -r package; do
+      [ -n "$package" ] || continue
+      stanza="$(index_stanza "$INDEX_TMP/INDEX" "$package")"
+      version="$(printf '%s\n' "$stanza" | sed -n 's/^Version: *//p')"
+      installed="$("$BDB_BIN" select packages --where "name=$package" 2>/dev/null |
+        tail -n +2 | tail -n 1 | cut -f2)"
+      if [ -n "$installed" ] && [ "$installed" != "$version" ]; then
+        printf '%s %s -> %s\n' "$package" "$installed" "$version"
+        available=$((available + 1))
+      fi
+    done < <(sed -n 's/^Package: *//p' "$INDEX_TMP/INDEX")
+    rm -rf "$INDEX_TMP"
+    [ "$available" -gt 0 ] || echo "pkg: system packages are current"
     ;;
   install)
-    name="${2:?missing name}"
-    version="${3:?missing version}"
-    tarball="${4:?missing tar path}"
-    checksum="${5:---}"
-    [ -f "$tarball" ] || { echo "pkg: missing archive: $tarball" >&2; exit 1; }
-    if [ "$checksum" != "--" ]; then
-      got="$(sha256sum "$tarball" | awk '{print $1}')"
-      [ "$got" = "$checksum" ] || { echo "pkg: checksum mismatch" >&2; exit 1; }
+    name="${2:?missing package name}"
+    prepare_index
+    tmp="$INDEX_TMP"; repo="$INDEX_REPO"; key="$INDEX_KEY"
+    stanza="$(index_stanza "$tmp/INDEX" "$name")"
+    [ -n "$stanza" ] || die "package not found: $name"
+    filename="$(printf '%s\n' "$stanza" | sed -n 's/^Filename: *//p')"
+    expected="$(printf '%s\n' "$stanza" | sed -n 's/^SHA256: *//p')"
+    fetch "${repo%/}/$filename" "$tmp/package.altpkg"
+    got="$(sha256_file "$tmp/package.altpkg")"
+    [ "$got" = "$expected" ] || die "repository checksum mismatch"
+    signature=""
+    if [ -n "$key" ]; then
+      fetch "${repo%/}/$filename.sig" "$tmp/package.altpkg.sig"
+      signature="$tmp/package.altpkg.sig"
     fi
-    dest="/opt/pkg/$name"
-    mkdir -p "$dest" "$PKG_ROOT"
-    tar -xf "$tarball" -C "$dest"
-    if /bin/bdb select packages --where "name=$name" >/dev/null 2>&1; then
-      /bin/bdb update packages --where "name=$name" version="$version" state=installed source="$tarball" checksum="$checksum" description="installed package" >/dev/null
+    install_file "$tmp/package.altpkg" "$signature" "$key" "${repo%/}/$filename"
+    rm -rf "$tmp"
+    ;;
+  upgrade)
+    if [ -n "${2:-}" ]; then
+      "$0" install "$2"
     else
-      /bin/bdb insert packages name="$name" version="$version" state=installed source="$tarball" checksum="$checksum" description="installed package" >/dev/null
+      updates="$("$0" check-updates | awk '$2 ~ /^[^ ]+$/ && $3 == "->" { print $1 }')"
+      if [ -z "$updates" ]; then
+        echo "pkg: nothing to upgrade"
+      else
+        while IFS= read -r name; do
+          "$0" install "$name"
+        done <<< "$updates"
+      fi
     fi
-    echo "pkg: installed $name $version"
+    ;;
+  install-file)
+    install_file "${2:?missing package file}" "${3:-}"
+    ;;
+  verify)
+    wanted="${2:-}"
+    failed=0
+    for state in "$STATE_ROOT"/*; do
+      [ -d "$state" ] || continue
+      name="$(basename "$state")"
+      [ -z "$wanted" ] || [ "$wanted" = "$name" ] || continue
+      while read -r expected rel; do
+        rel="${rel#payload/}"
+        if [ ! -f "$ROOT/$rel" ] || [ "$(sha256_file "$ROOT/$rel")" != "$expected" ]; then
+          echo "pkg: changed $name: /$rel" >&2
+          failed=1
+        fi
+      done < "$state/files.sha256"
+    done
+    [ "$failed" -eq 0 ] || exit 1
+    echo "pkg: installed files verified"
     ;;
   remove)
-    name="${2:?missing name}"
-    rm -rf "/opt/pkg/$name"
-    /bin/bdb update packages --where "name=$name" state=removed >/dev/null || true
+    name="${2:?missing package name}"
+    state="$STATE_ROOT/$name"
+    [ -f "$state/files.sha256" ] || die "package is not installed: $name"
+    while read -r expected rel; do
+      rel="${rel#payload/}"
+      file="$ROOT/$rel"
+      [ -f "$file" ] || continue
+      got="$(sha256_file "$file")"
+      [ "$got" = "$expected" ] ||
+        die "refusing to remove modified file: /$rel"
+      rm -f "$file"
+    done < "$state/files.sha256"
+    rm -rf "$state"
+    "$BDB_BIN" update packages --where "name=$name" state=removed >/dev/null || true
     echo "pkg: removed $name"
     ;;
-  help|-h|--help|"")
-    usage
-    ;;
-  *)
-    usage
-    exit 1
-    ;;
+  help|-h|--help|"") usage ;;
+  *) usage; exit 1 ;;
 esac

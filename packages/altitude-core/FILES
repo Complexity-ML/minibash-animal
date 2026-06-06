@@ -1,0 +1,12 @@
+bin/bdb
+bin/bdbql
+bin/bdbsh
+bin/bdbctl
+bin/bdbreg
+bin/bdbconf
+bin/bashsvc
+bin/pkg
+bin/altpkg-build
+bin/altrepo
+etc/minibash/system.conf
+etc/altitude/repositories.conf
