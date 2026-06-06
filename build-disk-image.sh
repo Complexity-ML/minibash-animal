@@ -11,12 +11,12 @@ OUT_DIR="${OUT_DIR:-$DISTRO_DIR/out}"
 ROOTFS_TGZ="${ROOTFS_TGZ:-$OUT_DIR/minibash-rootfs.tar.gz}"
 BOOT_INITRAMFS="${BOOT_INITRAMFS:-$OUT_DIR/minibash-boot.cpio.gz}"
 KERNEL_IMAGE="${KERNEL_IMAGE:-$OUT_DIR/debian-vmlinuz}"
-DISK_IMG="${DISK_IMG:-$OUT_DIR/minibash-disk.img}"
+DISK_IMG="${DISK_IMG:-$OUT_DIR/altitude-linux-disk.img}"
 IMG_SIZE_MB="${IMG_SIZE_MB:-5120}"
 ESP_MB="${ESP_MB:-256}"
-ROOT_LABEL="${ROOT_LABEL:-minibashroot}"
+ROOT_LABEL="${ROOT_LABEL:-altituderoot}"
 
-log() { printf '[minibash:diskimg] %s\n' "$*"; }
+log() { printf '[altitude:diskimg] %s\n' "$*"; }
 
 [ -f "$ROOTFS_TGZ" ] || { echo "missing rootfs tarball: $ROOTFS_TGZ" >&2; exit 1; }
 
@@ -48,8 +48,8 @@ sfdisk "$DISK_IMG" >/dev/null <<EOF
 label: gpt
 unit: sectors
 first-lba: 2048
-start=2048, size=${ESP_MB}M, type=uefi, name="MINIBASHEFI"
-start=${data_start}, type=linux, name="MINIBASHROOT"
+start=2048, size=${ESP_MB}M, type=uefi, name="ALTITUDEEFI"
+start=${data_start}, type=linux, name="ALTITUDEROOT"
 EOF
 
 # --- ext4 root partition (populated, unprivileged) --------------------------
@@ -61,7 +61,7 @@ mke2fs -q -t ext4 -L "$ROOT_LABEL" -d "$ROOTDIR" -F "$data_img" "${data_mb}M"
 log "building ESP (GRUB + kernel + boot initramfs)"
 esp_img="$(mktemp)"
 dd if=/dev/zero of="$esp_img" bs=1M count="$ESP_MB" status=none
-mformat -i "$esp_img" -F -v MINIBASHEFI ::
+mformat -i "$esp_img" -F -v ALTITUDEEFI ::
 mmd -i "$esp_img" ::/EFI ::/EFI/BOOT
 
 grub_cfg="$(mktemp)"
@@ -72,16 +72,16 @@ set default=0
 serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
 terminal_input console serial
 terminal_output console serial
-search --no-floppy --label MINIBASHEFI --set=root
+search --no-floppy --label ALTITUDEEFI --set=root
 
-menuentry "minibash-linux (disk root)" {
-  search --no-floppy --label MINIBASHEFI --set=root
+menuentry "Altitude Linux" {
+  search --no-floppy --label ALTITUDEEFI --set=root
   linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 console=tty0 panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd /initrd.img
 }
 
-menuentry "minibash-linux (disk root, serial)" {
-  search --no-floppy --label MINIBASHEFI --set=root
+menuentry "Altitude Linux (serial)" {
+  search --no-floppy --label ALTITUDEEFI --set=root
   linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root minibash.keymap=fr
   initrd /initrd.img
 }

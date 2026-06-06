@@ -1,11 +1,17 @@
-# minibash-linux
+# Altitude Linux
 
-# minibash-hack
+**Altitude Linux 0.1 "Basecamp"** est une distribution hybride Rust + C + Bash,
+pilotée par BDB. Elle utilise actuellement Debian comme socle de paquets et de
+compatibilité matérielle, mais expose sa propre identité, son init, son registre,
+son graphe de services, sa console d'administration et son cycle d'évolution.
 
-Mini distro Linux hybride (Rust + Bash). **v0.8**
+```bash
+altitude
+altitude --health
+```
 
 ```text
-Linux kernel (stable ISO: Debian vmlinuz connu-good; lab: bzImage custom)
+Linux kernel (paquet Debian connu-good aujourd'hui; noyau Altitude à terme)
   -> initramfs minimal
     -> /init = minit (Rust, PID 1)
          · mount fs · hostname · lo up
@@ -210,9 +216,9 @@ cd /Users/boris/Dev/minibash-linux
 `run-docker-iso.sh` produit deux images :
 
 ```text
-out/minibash-linux.iso                 # ISO stable, kernel Debian connu-good
-out/minibash-linux-custom-kernel.iso   # ISO lab, kernel custom minibash
-out/minibash-linux-usb.img             # USB native UEFI + partition desktop data
+out/altitude-linux.iso                 # ISO Altitude stable
+out/altitude-linux-usb.img             # image USB native UEFI
+out/altitude-linux-disk.img            # image disque installable
 ```
 
 La V1 stable utilise un kernel Debian extrait de `linux-image-amd64`, parce qu'il

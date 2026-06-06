@@ -3,15 +3,15 @@ set -euo pipefail
 
 DISTRO_DIR="${DISTRO_DIR:-/work/minibash-linux}"
 OUT_DIR="${OUT_DIR:-$DISTRO_DIR/out}"
-ISO_ROOT="${ISO_ROOT:-/tmp/minibash-linux-iso}"
-EFI_IMG="${EFI_IMG:-/tmp/minibash-linux-efiboot.img}"
-ISO_NAME="${ISO_NAME:-minibash-linux.iso}"
+ISO_ROOT="${ISO_ROOT:-/tmp/altitude-linux-iso}"
+EFI_IMG="${EFI_IMG:-/tmp/altitude-linux-efiboot.img}"
+ISO_NAME="${ISO_NAME:-altitude-linux.iso}"
 ISO="$OUT_DIR/$ISO_NAME"
 KERNEL_IMAGE="${KERNEL_IMAGE:-$OUT_DIR/bzImage}"
 INITRAMFS_IMAGE="${INITRAMFS_IMAGE:-$OUT_DIR/minibash-linux-initramfs.cpio.gz}"
 
 log() {
-  printf '[minibash:iso] %s\n' "$*"
+  printf '[altitude:iso] %s\n' "$*"
 }
 
 find_first() {
@@ -92,21 +92,21 @@ terminal_output console
 set gfxmode=auto
 set gfxpayload=keep
 
-menuentry "minibash-linux live" {
+menuentry "Altitude Linux" {
   search --no-floppy --file --set=root /kernel
   echo "boot root: $root"
   linux ($root)/kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd ($root)/initrd.gz
 }
 
-menuentry "minibash-linux live qwerty" {
+menuentry "Altitude Linux (QWERTY)" {
   search --no-floppy --file --set=root /kernel
   echo "boot root: $root"
   linux ($root)/kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
   initrd ($root)/initrd.gz
 }
 
-menuentry "minibash-linux live serial debug" {
+menuentry "Altitude Linux (serial debug)" {
   serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
   terminal_output serial
   search --no-floppy --file --set=root /kernel
@@ -146,7 +146,7 @@ CFG
     -e EFI/efiboot.img \
     -no-emul-boot \
     -isohybrid-gpt-basdat \
-    -V MINIBASH \
+    -V ALTITUDE \
     "$ISO_ROOT" >/dev/null
 
   log "iso: $ISO"

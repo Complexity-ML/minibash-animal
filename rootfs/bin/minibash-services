@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# minibash services — desktop GUI over the bdb `services` table (bash + yad).
-# Surfaces the minibash service DB inside GNOME: list state + start/stop/restart.
+# Altitude Services - desktop GUI over the bdb `services` table (bash + yad).
+# Surfaces the Altitude service DB inside GNOME: list state + start/stop/restart.
 # Service control needs root (signals minit/PID1, writes /var/bdb), so the
 # actions go through `sudo` (see /etc/sudoers.d/minibash-svc).
 export BDB_PATH="${BDB_PATH:-/var/bdb}"
@@ -18,7 +18,7 @@ rows() {
 # Fallback to a terminal view if yad isn't present.
 if ! have yad; then
   if have zenity; then
-    zenity --text-info --title="minibash services" --width=720 --height=440 \
+    zenity --text-info --title="Altitude Services" --width=720 --height=440 \
       --filename=<($BDB select services 2>/dev/null)
   else
     $BDB select services
@@ -27,7 +27,7 @@ if ! have yad; then
 fi
 
 while true; do
-  sel=$(rows | yad --list --title="minibash · services (bdb)" \
+  sel=$(rows | yad --list --title="Altitude Services (BDB)" \
         --width=760 --height=440 --separator="|" --print-column=2 \
         --column="État" --column="Service" --column="Voulu" --column="PID" --column="Description" \
         --button="▶ Démarrer:2" --button="■ Arrêter:3" --button="↻ Redémarrer:4" \

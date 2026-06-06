@@ -10,11 +10,11 @@ export BDB_PATH
 echo "web: http status server starting on 0.0.0.0:${PORT}"
 
 build_body() {
-  echo "minibash-linux :: service status"
+  echo "Altitude Linux :: service status"
   echo
   /bin/bdb select services
   echo
-  local up="0" host="minibash"
+  local up="0" host="altitude"
   if read -r up _ < /proc/uptime 2>/dev/null; then up="${up%.*}"; fi
   if [ -r /proc/sys/kernel/hostname ]; then read -r host < /proc/sys/kernel/hostname; fi
   echo "host: ${host}   uptime: ${up}s"

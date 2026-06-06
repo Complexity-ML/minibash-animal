@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# minibash-linux login.
+# Altitude Linux login.
 #
 # Authenticates against the `users` table in bdb (the single source of truth).
 # Honours kernel command line options (like agetty --autologin):
@@ -8,7 +8,7 @@
 set -u
 
 BDB_PATH="${BDB_PATH:-/var/bdb}"; export BDB_PATH
-HOSTNAME="${HOSTNAME:-minibash}"
+HOSTNAME="${HOSTNAME:-altitude}"
 VERSION="$(cat /etc/minibash/VERSION 2>/dev/null || echo 0.0.0)"
 
 # --- kernel command line -----------------------------------------------------
@@ -67,7 +67,7 @@ start_session() {
   # name embedded literally so the prompt is right even without a passwd lookup
   export PS1="[${name}@${HOSTNAME} \\W]\\$ "
   cd "$home" 2>/dev/null || cd /
-  echo "Welcome to minibash-linux, ${name}. Try: bashsvc status"
+  echo "Welcome to Altitude Linux, ${name}. Try: bdbctl summary"
   "$shell" -i
   echo "logout"
 }

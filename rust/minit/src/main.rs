@@ -1,4 +1,4 @@
-// minit - PID 1 for minibash-linux (v0.4)
+// minit - PID 1 for Altitude Linux (v0.4)
 //
 // A small, dependency-free init written in Rust. It does the things a Bash
 // PID 1 cannot do safely:
@@ -24,7 +24,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const BDB_PATH: &str = "/var/bdb";
 const SERVICE_PATH: &str = "/bin:/usr/bin:/sbin:/usr/sbin:/services";
 const LOG_DIR: &str = "/var/log/minibash";
-const HOSTNAME: &str = "minibash";
+const HOSTNAME: &str = "altitude";
 
 // ----------------------------------------------------------------------------
 // libc bindings (no external crates: declare exactly what we use)
@@ -1075,7 +1075,7 @@ fn do_shutdown(mode: u8) {
 // main
 // ----------------------------------------------------------------------------
 fn main() {
-    log("booting minibash linux");
+    log("booting Altitude Linux");
     mount_all();
     apply_keymap();
     load_storage_modules();

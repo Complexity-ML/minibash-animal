@@ -145,6 +145,19 @@ if ! have_table registry; then
     value=carrier owner=netmgr updated_at="$now" >/dev/null
 fi
 
+ensure_registry() {
+  path="$1"; type="$2"; value="$3"; owner="$4"
+  $BDB dump registry 2>/dev/null | cut -f1 | grep -qx "$path" && return 0
+  now=$(date +%s 2>/dev/null || echo 0)
+  $BDB insert registry path="$path" type="$type" value="$value" \
+    owner="$owner" updated_at="$now" >/dev/null
+}
+ensure_registry /system/product/name string "Altitude Linux" system
+ensure_registry /system/product/id string altitude system
+ensure_registry /system/product/version string 0.1.0 system
+ensure_registry /system/product/codename string basecamp system
+ensure_registry /system/product/base string debian system
+
 # --- service dependencies: systemd-like requires/after/before relationships -
 if ! have_table service_dependencies; then
   $BDB create service_dependencies id:text:pk service:text relation:text \

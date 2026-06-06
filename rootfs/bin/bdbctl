@@ -51,7 +51,7 @@ heading() {
 }
 
 host_name() {
-  cat /proc/sys/kernel/hostname 2>/dev/null || hostname 2>/dev/null || echo minibash
+  cat /proc/sys/kernel/hostname 2>/dev/null || hostname 2>/dev/null || echo altitude
 }
 
 uptime_seconds() {
@@ -76,7 +76,7 @@ cmd_summary() {
     awk -F '\t' 'NR > 1 && $6 == "running" { n++ } END { print n + 0 }')
   unhealthy=$(emit_health_issues | awk 'END { print NR + 0 }')
 
-  printf '%sminibash control%s  host=%s  uptime=%ss  bdb=%s\n' \
+  printf '%sAltitude Control%s  host=%s  uptime=%ss  bdb=%s\n' \
     "$bold" "$reset" "$(host_name)" "$(uptime_seconds)" \
     "$("$BDB_BIN" version 2>/dev/null || echo unknown)"
   if [ "$unhealthy" -eq 0 ]; then

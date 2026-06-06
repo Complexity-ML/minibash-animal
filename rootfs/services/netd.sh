@@ -5,7 +5,7 @@ set -u
 
 echo "netd: network reporter online"
 while true; do
-  host="$(cat /proc/sys/kernel/hostname 2>/dev/null || echo minibash)"
+  host="$(cat /proc/sys/kernel/hostname 2>/dev/null || echo altitude)"
   ipv4="$(busybox ip -4 addr show eth0 2>/dev/null | awk '/inet / { print $2; exit }')"
   route="$(busybox ip route 2>/dev/null | awk '/default/ { print $3; exit }')"
   [ -n "$ipv4" ] || ipv4="none"

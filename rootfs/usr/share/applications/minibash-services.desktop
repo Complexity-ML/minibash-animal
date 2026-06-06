@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=minibash · services
-Comment=Services minibash (base bdb) — démarrer / arrêter / redémarrer
+Name=Altitude Services
+Comment=Administrer les services Altitude pilotés par BDB
 Exec=/bin/minibash-services
 Icon=applications-system
 Terminal=false
 Categories=System;Settings;Utility;
-Keywords=minibash;bdb;service;daemon;
+Keywords=altitude;bdb;service;daemon;

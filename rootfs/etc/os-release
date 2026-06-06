@@ -1,0 +1,11 @@
+NAME="Altitude Linux"
+PRETTY_NAME="Altitude Linux 0.1 (Basecamp)"
+ID=altitude
+ID_LIKE=debian
+VERSION_ID="0.1"
+VERSION="0.1 (Basecamp)"
+VERSION_CODENAME=basecamp
+BUILD_ID=0.1.0
+HOME_URL="https://github.com/Complexity-ML/minibash-altitude"
+SUPPORT_URL="https://github.com/Complexity-ML/minibash-altitude/issues"
+BUG_REPORT_URL="https://github.com/Complexity-ML/minibash-altitude/issues"

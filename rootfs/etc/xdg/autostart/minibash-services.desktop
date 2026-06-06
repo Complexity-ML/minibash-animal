@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=minibash services panel
+Name=Altitude Services
 Exec=/bin/minibash-services
 Icon=applications-system
 Terminal=false

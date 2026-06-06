@@ -1,4 +1,4 @@
-minibash-linux native BDB boot database.
+Altitude Linux native BDB boot database.
 
 The init process copies this seed database to /var/bdb during early boot.
 Runtime mutations use the C engine's fsync-backed redo WAL. Run `bdb check`

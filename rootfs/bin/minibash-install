@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Conservative disk installer for minibash-linux.
+# Conservative disk installer for Altitude Linux.
 set -euo pipefail
 
 TARGET=""
@@ -98,7 +98,7 @@ if [ -f "$mbr" ]; then
 fi
 
 cat > "$mountpoint/README.minibash-install" <<'EOF'
-minibash-linux installed.
+Altitude Linux installed.
 
 Boot layout:
   /boot/minibash/A

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Altitude Linux identity and runtime summary.
+set -u
+
+export BDB_PATH="${BDB_PATH:-/var/bdb}"
+
+if [ -r /etc/os-release ]; then
+  . /etc/os-release
+fi
+
+echo "${PRETTY_NAME:-Altitude Linux}"
+echo "id=${ID:-altitude} base=${ID_LIKE:-unknown}"
+echo "kernel=$(uname -sr 2>/dev/null || echo unknown)"
+echo "bdb=$(/bin/bdb version 2>/dev/null || echo unavailable)"
+echo "hostname=$(cat /proc/sys/kernel/hostname 2>/dev/null || echo altitude)"
+
+if [ "${1:-}" = "--health" ]; then
+  exec /bin/bdbctl health
+fi

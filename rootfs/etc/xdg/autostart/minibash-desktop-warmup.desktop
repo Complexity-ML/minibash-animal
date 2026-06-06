@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=minibash desktop warmup
+Name=Altitude desktop warmup
 Exec=/bin/minibash-desktop-warmup
 Terminal=false
 X-GNOME-Autostart-enabled=true

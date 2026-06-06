@@ -14,7 +14,7 @@ struct Service {
 }
 
 fn main() {
-    println!("[bdbboot:rust] Linux+Bash+bdb hybrid boot helper");
+    println!("[bdbboot:rust] Altitude Linux BDB boot helper");
 
     let path = "/var/bdb/tables/services/data.bdb";
     let services = match read_bdb_rows(path, 8) {
