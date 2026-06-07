@@ -11,7 +11,7 @@ altitude --health
 ```
 
 ```text
-Linux kernel (paquet `altitude-kernel`; recette source Altitude à venir)
+Linux 7.0.10-altitude (paquet `altitude-kernel`, compilé par la forge Altitude)
   -> initramfs minimal
     -> /init = minit (Rust, PID 1)
          · mount fs · hostname · lo up
@@ -242,9 +242,11 @@ out/altitude-linux-usb.img             # image USB native UEFI
 out/altitude-linux-disk.img            # image disque installable
 ```
 
-La V1 stable utilise le kernel validé sur le HP OMEN, capturé dans
-`altitude-kernel`. Le prochain palier compile ce kernel depuis une recette source
-Altitude verrouillée. Le kernel de laboratoire reste dans `kernel/bzImage`.
+La V1 stable utilise `7.0.10-altitude`, compilé depuis une source Linux
+verrouillée par la forge et empaqueté avec ses modules signés. Son profil
+générique x86_64 couvre les familles courantes de GPU, Wi-Fi, Ethernet,
+stockage, USB, audio, Bluetooth et HID : il n'est pas spécifique au HP OMEN.
+Les autres architectures auront leurs propres profils Altitude.
 
 Le script `build-desktop-payload.sh` construit le payload desktop séparé, sans
 le gonfler dans l'initramfs. `build-usb.sh` peut l'embarquer dans une deuxième

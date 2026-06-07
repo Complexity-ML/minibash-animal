@@ -29,9 +29,9 @@ tar -xzf "$ROOTFS_TGZ" -C "$ROOTDIR"
 # --- boot: use the rootfs's own packaged kernel + initrd --------------------
 ver="$(ls "$ROOTDIR/lib/modules" | head -1)"
 KERNEL_IMAGE="${KERNEL_IMAGE_OVERRIDE:-$ROOTDIR/boot/vmlinuz-$ver}"
-INITRD_IMAGE="${INITRD_IMAGE_OVERRIDE:-$ROOTDIR/boot/initrd.img-$ver}"
+INITRD_IMAGE="${INITRD_IMAGE_OVERRIDE:-$BOOT_INITRAMFS}"
 [ -f "$KERNEL_IMAGE" ] || { echo "no kernel /boot/vmlinuz-$ver in rootfs" >&2; exit 1; }
-[ -f "$INITRD_IMAGE" ] || { echo "no initrd /boot/initrd.img-$ver in rootfs" >&2; exit 1; }
+[ -f "$INITRD_IMAGE" ] || { echo "no boot initramfs: $INITRD_IMAGE" >&2; exit 1; }
 log "Altitude kernel $ver + initrd"
 
 # --- geometry ---------------------------------------------------------------

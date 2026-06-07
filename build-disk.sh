@@ -88,11 +88,30 @@ for sub in \
   kernel/lib/libcrc32c.ko \
   kernel/crypto/crc32c_generic.ko \
   kernel/arch/x86/crypto/crc32c-intel.ko; do
-  if [ -e "$mod_src/$sub" ]; then
+  source_path=
+  for candidate in "$mod_src/$sub" "$mod_src/$sub.xz" \
+    "$mod_src/$sub.zst" "$mod_src/$sub.gz"; do
+    if [ -e "$candidate" ]; then
+      source_path="$candidate"
+      break
+    fi
+  done
+  if [ -n "$source_path" ]; then
     mkdir -p "$mod_dst/$(dirname "$sub")"
-    cp -a "$mod_src/$sub" "$mod_dst/$(dirname "$sub")/"
+    cp -a "$source_path" "$mod_dst/$(dirname "$sub")/"
   fi
 done
+# BusyBox modprobe is intentionally tiny; keep the boot initramfs independent
+# from optional module-compression support.
+find "$mod_dst" -type f -name '*.ko.xz' -exec xz -d {} +
+find "$mod_dst" -type f -name '*.ko.gz' -exec gzip -d {} +
+if find "$mod_dst" -type f -name '*.ko.zst' | grep -q .; then
+  command -v zstd >/dev/null 2>&1 || {
+    echo "zstd is required to unpack kernel modules for the boot initramfs" >&2
+    exit 1
+  }
+  find "$mod_dst" -type f -name '*.ko.zst' -exec zstd -d --rm -q {} +
+fi
 depmod -b "$BOOT" "$ver"
 
 log "packing boot initramfs -> $BOOT_INITRAMFS"

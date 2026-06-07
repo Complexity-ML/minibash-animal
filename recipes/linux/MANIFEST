@@ -1,5 +1,5 @@
 Format: altitude-package-1
-Name: altitude-linux
+Name: altitude-kernel
 Version: 7.0.10
 Architecture: amd64
-Description: Linux kernel built from locked upstream source by the Altitude toolchain
+Description: Altitude kernel and modules built from locked Linux source

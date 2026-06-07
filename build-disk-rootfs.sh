@@ -258,6 +258,20 @@ grep -q '^/bin/bash' "$CHROOT/etc/shells" 2>/dev/null || echo /bin/bash >> "$CHR
 log "capturing kernel, firmware and base userspace as Altitude packages"
 bash "$DISTRO_DIR/scripts/capture-altitude-system.sh" \
   "$CHROOT" "$OUT_DIR/system-packages"
+
+# A source-built Altitude kernel supersedes the bootstrap kernel snapshot.
+# The package contains /boot/vmlinuz, System.map, config and all modules; the
+# boot initramfs is generated later from that exact module tree.
+if [ -n "${ALTITUDE_KERNEL_PACKAGE:-}" ]; then
+  [ -f "$ALTITUDE_KERNEL_PACKAGE" ] || {
+    echo "missing ALTITUDE_KERNEL_PACKAGE: $ALTITUDE_KERNEL_PACKAGE" >&2
+    exit 1
+  }
+  rm -f "$OUT_DIR"/system-packages/altitude-kernel-*.altpkg
+  cp "$ALTITUDE_KERNEL_PACKAGE" "$OUT_DIR/system-packages/"
+  log "using source-built kernel package: $ALTITUDE_KERNEL_PACKAGE"
+fi
+
 for package in "$OUT_DIR"/system-packages/*.altpkg; do
   ALTITUDE_REPO_ROOT="$OUT_DIR/repository" \
     bash "$DISTRO_DIR/rootfs/bin/altrepo" add "$package"
