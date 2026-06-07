@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-for recipe in busybox binutils gcc-bootstrap linux-headers glibc-bootstrap \
+for recipe in busybox bash base-runtime binutils gcc-bootstrap linux-headers glibc-bootstrap \
   forge-tools forge-libelf forge-openssl linux; do
   manifest="$ROOT/recipes/$recipe/MANIFEST"
   build="$ROOT/recipes/$recipe/build.sh"
@@ -11,13 +11,15 @@ for recipe in busybox binutils gcc-bootstrap linux-headers glibc-bootstrap \
   [ -x "$build" ]
   grep -q '^Format: altitude-package-1$' "$manifest"
   source_name="$recipe"
+  [ "$recipe" != base-runtime ] || source_name=""
   [ "$recipe" != gcc-bootstrap ] || source_name=gcc
   [ "$recipe" != linux-headers ] || source_name=linux
   [ "$recipe" != glibc-bootstrap ] || source_name=glibc
   [ "$recipe" != forge-tools ] || source_name=m4
   [ "$recipe" != forge-libelf ] || source_name=elfutils
   [ "$recipe" != forge-openssl ] || source_name=openssl
-  grep -q "^Source: $source_name$" "$ROOT/sources/SOURCES.lock"
+  [ -z "$source_name" ] ||
+    grep -q "^Source: $source_name$" "$ROOT/sources/SOURCES.lock"
   bash -n "$build"
 done
 
@@ -43,6 +45,13 @@ grep -q '^Source: gawk$' "$ROOT/sources/SOURCES.lock"
 grep -q '^Source: flex$' "$ROOT/sources/SOURCES.lock"
 grep -q '^Source: elfutils$' "$ROOT/sources/SOURCES.lock"
 grep -q '^Source: openssl$' "$ROOT/sources/SOURCES.lock"
+grep -q '^Source: bash$' "$ROOT/sources/SOURCES.lock"
+grep -q -- '--enable-static-link' "$ROOT/recipes/bash/build.sh"
+grep -q 'LDFLAGS="-static"' "$ROOT/recipes/bash/build.sh"
+grep -q 'Debian-runtime-files: 0' "$ROOT/recipes/base-runtime/build.sh"
+grep -q ' -static ' "$ROOT/recipes/base-runtime/build.sh"
+grep -q 'ln -s sbin/init "\$PAYLOAD/init"' \
+  "$ROOT/recipes/base-runtime/build.sh"
 grep -q 'generic-x86_64.config' "$ROOT/recipes/linux/build.sh"
 grep -q 'CONFIG_IWLWIFI=m' "$ROOT/recipes/linux/config/generic-x86_64.config"
 grep -q 'CONFIG_DRM_NOUVEAU=m' "$ROOT/recipes/linux/config/generic-x86_64.config"
@@ -54,5 +63,7 @@ grep -q 'ALTITUDE_RECIPE_RESUME' "$ROOT/recipes/linux/build.sh"
 grep -q '^Name: altitude-kernel$' "$ROOT/recipes/linux/MANIFEST"
 grep -q "'\\*.ko.xz'" "$ROOT/build-disk.sh"
 grep -q 'xz -d' "$ROOT/build-disk.sh"
+grep -q 'BOOT_BUSYBOX=' "$ROOT/build-disk.sh"
+grep -q -- '--show-depends' "$ROOT/build-disk.sh"
 
 echo "Altitude source recipes: ok"

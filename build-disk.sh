@@ -15,6 +15,7 @@ KERNEL_MODULES_DIR="${KERNEL_MODULES_DIR:-$OUT_DIR/debian-modules}"
 ROOTFS_TGZ="${ROOTFS_TGZ:-$OUT_DIR/minibash-rootfs.tar.gz}"
 BOOT_INITRAMFS="${BOOT_INITRAMFS:-$OUT_DIR/minibash-boot.cpio.gz}"
 ROOTFS_WORK="${ROOTFS_WORK:-/tmp/minibash-diskroot}"
+BOOT_BUSYBOX="${BOOT_BUSYBOX:-$(type -P busybox)}"
 
 log() { printf '[minibash:disk] %s\n' "$*"; }
 
@@ -43,7 +44,11 @@ BOOT="/tmp/minibash-boot"
 rm -rf "$BOOT"
 mkdir -p "$BOOT"/{bin,sbin,proc,sys,dev,newroot,etc}
 
-busybox_bin="$(type -P busybox)"
+busybox_bin="$BOOT_BUSYBOX"
+[ -x "$busybox_bin" ] || {
+  echo "missing boot BusyBox: $busybox_bin" >&2
+  exit 1
+}
 cp -L "$busybox_bin" "$BOOT/bin/busybox"
 chmod +x "$BOOT/bin/busybox"
 # applets the stub uses (busybox resolves these from argv[0]); also make the
@@ -85,6 +90,7 @@ for sub in \
   kernel/fs/nls \
   kernel/fs/mbcache.ko \
   kernel/lib/crc16.ko \
+  kernel/lib/crc/crc16.ko \
   kernel/lib/libcrc32c.ko \
   kernel/crypto/crc32c_generic.ko \
   kernel/arch/x86/crypto/crc32c-intel.ko; do
@@ -101,6 +107,24 @@ for sub in \
     cp -a "$source_path" "$mod_dst/$(dirname "$sub")/"
   fi
 done
+
+# Complete the dependency closure from the source tree. Kernel module paths
+# move between releases; resolving by module name keeps the boot initramfs
+# correct without teaching this script every internal directory change.
+host_modprobe="$(type -P modprobe)"
+for module in ext4 vfat ahci nvme virtio_blk virtio_scsi xhci_pci \
+  usb_storage uas usbhid hid_generic; do
+  "$host_modprobe" -d "$KERNEL_MODULES_DIR" -S "$ver" \
+    --show-depends "$module" 2>/dev/null |
+    awk '$1 == "insmod" { print $2 }' |
+    while IFS= read -r source_path; do
+      rel="${source_path#"$KERNEL_MODULES_DIR"/lib/modules/"$ver"/}"
+      [ "$rel" != "$source_path" ] || continue
+      mkdir -p "$mod_dst/$(dirname "$rel")"
+      cp -a "$source_path" "$mod_dst/$rel"
+    done
+done
+
 # BusyBox modprobe is intentionally tiny; keep the boot initramfs independent
 # from optional module-compression support.
 find "$mod_dst" -type f -name '*.ko.xz' -exec xz -d {} +

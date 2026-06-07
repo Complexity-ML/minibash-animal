@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-base-runtime
+Version: 0.1.0
+Architecture: amd64
+Description: Native Altitude console runtime and BDB control plane

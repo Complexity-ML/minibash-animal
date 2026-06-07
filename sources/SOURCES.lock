@@ -48,6 +48,11 @@ Version: 1.37.0
 URL: https://busybox.net/downloads/busybox-1.37.0.tar.bz2
 SHA256: 3311dff32e746499f4df0d5df04d7eb396382d7e108bb9250e7b519b837043a4
 
+Source: bash
+Version: 5.3
+URL: https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz
+SHA256: 0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba
+
 Source: linux
 Version: 7.0.10
 URL: https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.0.10.tar.xz
