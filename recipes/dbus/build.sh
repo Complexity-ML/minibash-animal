@@ -80,6 +80,7 @@ meson setup "$WORK/build" "$WORK/source" \
   -Druntime_dir=/run \
   -Dsession_socket_dir=/tmp
 DESTDIR="$WORK/payload" ninja -C "$WORK/build" -j"$JOBS" install
+chmod 4755 "$WORK/payload/usr/libexec/dbus-daemon-launch-helper" 2>/dev/null || true
 
 find "$WORK/payload/usr" -type f -perm -0100 -print0 |
   while IFS= read -r -d '' file; do

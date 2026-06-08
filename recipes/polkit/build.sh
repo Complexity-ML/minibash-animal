@@ -91,6 +91,8 @@ meson setup "$WORK/build" "$WORK/source" \
   -Dgtk_doc=false -Dman=false -Dgettext=false
 meson compile -C "$WORK/build"
 DESTDIR="$PAYLOAD" meson install -C "$WORK/build"
+chmod 4755 "$PAYLOAD/usr/bin/pkexec" \
+  "$PAYLOAD/usr/lib/polkit-1/polkit-agent-helper-1" 2>/dev/null || true
 
 find "$PAYLOAD/usr" -type f -perm -0100 -print0 |
   while IFS= read -r -d '' file; do

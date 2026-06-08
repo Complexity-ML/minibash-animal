@@ -9,6 +9,7 @@ PAYLOAD="$WORK/payload"
 
 rm -rf "$WORK"
 mkdir -p "$PAYLOAD/usr/bin" \
+  "$PAYLOAD/usr/share/applications" \
   "$PAYLOAD/usr/share/wayland-sessions" \
   "$PAYLOAD/usr/share/gnome-session/sessions" \
   "$PAYLOAD/usr/share/altitude/sources" "$OUT"
@@ -63,10 +64,21 @@ Name=Altitude GNOME
 RequiredComponents=org.gnome.Shell;
 EOF
 
+cat > "$PAYLOAD/usr/share/applications/org.gnome.Settings.desktop" <<'EOF'
+[Desktop Entry]
+Name=Settings
+Comment=Configure Altitude GNOME
+Exec=/bin/false
+Icon=preferences-system
+Type=Application
+Categories=GNOME;GTK;Settings;
+NoDisplay=true
+EOF
+
 {
   echo "Source: Altitude Linux"
   echo "Version: $VERSION"
-  echo "Build: non-systemd GNOME Shell Wayland session wrapper"
+  echo "Build: non-systemd GNOME Shell Wayland session wrapper and Settings stub"
   echo "Upstream-note: gnome-session 48 requires GTK3 and systemd/libsystemd;"
   echo "Upstream-note: this package provides the Altitude session entry point."
 } > "$PAYLOAD/usr/share/altitude/sources/gnome-session.build"

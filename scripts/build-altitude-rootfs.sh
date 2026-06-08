@@ -23,6 +23,7 @@ require_package() {
 base_packages=(
   altitude-base-runtime
   altitude-busybox
+  altitude-ncurses
   altitude-bash
   altitude-kernel
   altitude-dropbear
@@ -45,6 +46,7 @@ desktop_packages=(
   altitude-libdrm
   altitude-mesa
   altitude-gtk4
+  altitude-hicolor-icon-theme
   altitude-gsettings-desktop-schemas
   altitude-gnome-desktop
   altitude-json-c

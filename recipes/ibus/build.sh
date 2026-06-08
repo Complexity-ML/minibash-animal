@@ -86,6 +86,26 @@ export PATH="$WORK/tools:$PATH"
   DESTDIR="$PAYLOAD" "$MAKE" install
 )
 
+if [ -x "$PAYLOAD/usr/bin/ibus-daemon" ]; then
+  mv "$PAYLOAD/usr/bin/ibus-daemon" "$PAYLOAD/usr/bin/ibus-daemon.real"
+  cat > "$PAYLOAD/usr/bin/ibus-daemon" <<'EOF'
+#!/bin/sh
+has_config=0
+for arg in "$@"; do
+  case "$arg" in
+    -c|--config|--config=*) has_config=1 ;;
+  esac
+done
+if [ "$has_config" = 1 ]; then
+  exec /usr/bin/ibus-daemon.real "$@"
+fi
+exec /usr/bin/ibus-daemon.real --config disable "$@"
+EOF
+  chmod 755 "$PAYLOAD/usr/bin/ibus-daemon"
+fi
+rm -f "$PAYLOAD/usr/share/dbus-1/services/org.freedesktop.portal.IBus.service" \
+  "$PAYLOAD/usr/libexec/ibus-portal"
+
 if [ -d "$PAYLOAD/usr/lib/girepository-1.0" ]; then
   find "$PAYLOAD/usr/lib/girepository-1.0" -type f -name '*.typelib' -print >/dev/null
 fi
@@ -99,7 +119,8 @@ cp -a "$PAYLOAD/usr/." "$SYSROOT/usr/"
   echo "Source: ibus"
   echo "Version: $VERSION"
   echo "SHA256: $(sha256sum "$TARBALL" | awk '{print $1}')"
-  echo "Build: libibus and IBus-1.0 typelib cross $TARGET"
+  echo "Build: libibus, ibus-daemon wrapper, and IBus-1.0 typelib cross $TARGET"
+  echo "Runtime-note: portal service disabled until Altitude ships xdg-desktop-portal"
   echo "Compiler: $("$CC" --version | head -1)"
 } > "$PAYLOAD/usr/share/altitude/sources/ibus.build"
 

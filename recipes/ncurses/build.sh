@@ -41,7 +41,6 @@ tar -xf "$TARBALL" -C "$WORK/source" --strip-components=1
       --with-normal \
       --without-debug \
       --disable-stripping \
-      --disable-db-install \
       --without-ada \
       --without-cxx-binding \
       --enable-widec \
@@ -67,7 +66,7 @@ cp -a "$WORK/payload/usr/lib/." "$SYSROOT/usr/lib/"
   echo "Source: ncurses"
   echo "Version: $VERSION"
   echo "SHA256: $(sha256sum "$TARBALL" | awk '{print $1}')"
-  echo "Build: shared+normal wide-character terminal libraries cross $TARGET"
+  echo "Build: shared+normal wide-character terminal libraries and terminfo database cross $TARGET"
   echo "Compiler: $("$CC" --version | head -1)"
 } > "$WORK/payload/usr/share/altitude/sources/ncurses.build"
 

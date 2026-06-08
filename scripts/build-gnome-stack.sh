@@ -70,6 +70,7 @@ build_layer shaping harfbuzz
 build_layer drawing cairo
 build_layer text pango
 build_layer toolkit gtk4
+build_layer icon-theme hicolor-icon-theme
 build_layer shell-schemas gsettings-desktop-schemas
 build_layer desktop-data xkeyboard-config iso-codes
 build_layer sandbox libseccomp
@@ -91,12 +92,15 @@ build_layer js-runtime mozjs gjs
 build_layer eds-primitives sqlite libnghttp2 json-glib libsecret libpsl libsoup libical
 build_layer unicode icu nspr nss
 build_layer calendar-data evolution-data-server
+build_layer location geoclue geocode-glib
+build_layer weather libgweather
 build_layer crypto-primitives libgpg-error libgcrypt
 build_layer pkcs11 p11-kit
 build_layer certificate-ui gcr
 build_layer policy-primitives duktape libxcrypt
 build_layer policy polkit
 build_layer audio alsa libsndfile pulseaudio
+build_layer input-method ibus
 build_layer shell gnome-shell
 build_layer session gnome-session
 build_layer desktop-services accountsservice upower udisks

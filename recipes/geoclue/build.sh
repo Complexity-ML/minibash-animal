@@ -30,7 +30,8 @@ for tool in meson ninja; do
   command -v "$tool" >/dev/null ||
     { echo "geoclue: missing host build tool: $tool" >&2; exit 1; }
 done
-for dep in gio-2.0 gio-unix-2.0 glib-2.0 gobject-introspection-1.0; do
+for dep in gio-2.0 gio-unix-2.0 glib-2.0 gobject-introspection-1.0 \
+  json-glib-1.0 libsoup-3.0; do
   "$PKG_CONFIG" --exists "$dep" ||
     { echo "geoclue: target dependency missing: $dep" >&2; exit 1; }
 done
@@ -54,7 +55,7 @@ EOF
 chmod +x "$WORK/tools/ldd"
 export PATH="$WORK/tools:$PATH"
 
-perl -0pi -e "s/subdir\\('data'\\)\\nsubdir\\('demo'\\)\\nsubdir\\('po'\\)/# data, demo and translations are service packaging layers.\\n/s" \
+perl -0pi -e "s/subdir\\('demo'\\)\\nsubdir\\('po'\\)/# demo and translations are not needed for Altitude runtime.\\n/s" \
   "$WORK/source/meson.build"
 
 cat > "$WORK/cross.ini" <<EOF
@@ -85,7 +86,8 @@ meson setup "$WORK/build" "$WORK/source" \
   --prefix=/usr --libdir=lib --libexecdir=libexec \
   --buildtype=release --default-library=both --wrap-mode=nofallback \
   -Dlibgeoclue=true -Dintrospection=true -Dvapi=false -Dgtk-doc=false \
-  -Denable-backend=false -Ddemo-agent=false \
+  -Denable-backend=true -Ddemo-agent=false -Ddbus-srv-user=root \
+  -Dsystemd-system-unit-dir= \
   -D3g-source=false -Dcdma-source=false -Dmodem-gps-source=false \
   -Dnmea-source=false -Dcompass=false
 meson compile -C "$WORK/build"
