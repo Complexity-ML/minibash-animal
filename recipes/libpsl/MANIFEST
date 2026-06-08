@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-libpsl
+Version: 0.21.5
+Architecture: amd64
+Description: Public Suffix List library for libsoup in the Altitude desktop stack

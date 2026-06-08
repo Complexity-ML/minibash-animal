@@ -1,0 +1,5 @@
+Package: altitude-forge-cbindgen
+Name: altitude-forge-cbindgen
+Version: 0.28.0
+Architecture: amd64
+Description: cbindgen header generator for the Altitude forge

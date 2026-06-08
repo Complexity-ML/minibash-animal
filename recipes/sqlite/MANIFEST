@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-sqlite
+Version: 3.50.4
+Architecture: amd64
+Description: SQLite library for the Altitude desktop stack

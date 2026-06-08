@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-at-spi2-core
+Version: 2.56.8
+Architecture: amd64
+Description: Assistive Technology Service Provider bridge for the Altitude desktop stack

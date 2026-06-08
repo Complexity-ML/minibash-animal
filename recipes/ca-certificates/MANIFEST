@@ -1,0 +1,5 @@
+Package: altitude-ca-certificates
+Name: altitude-ca-certificates
+Version: 2026.05.14
+Architecture: amd64
+Description: Mozilla CA certificate bundle for Altitude TLS clients

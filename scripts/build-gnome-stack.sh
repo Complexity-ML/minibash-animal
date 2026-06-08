@@ -36,7 +36,9 @@ build_layer() {
   fi
 }
 
-build_layer core-primitives zlib libffi pcre2 expat
+build_layer host-bootstrap forge-perl
+build_layer core-primitives zlib libffi pcre2 expat ncurses openssl
+build_layer trust ca-certificates
 build_layer python python-build-runtime
 build_layer compiler gcc-cxx
 build_layer tooling forge-tools forge-cvt forge-gettext meson ninja cmake
@@ -75,11 +77,22 @@ build_layer input-primitives libevdev mtdev
 build_layer input libinput
 build_layer introspection gobject-introspection
 build_layer color-primitives lcms2
-build_layer compositor-primitives atk libei libdisplay-info
+build_layer compositor-primitives atk at-spi2-core libei libdisplay-info
 build_layer color colord
 build_layer shell-compositor mutter
+build_layer rust-bootstrap forge-rust forge-cbindgen
+build_layer css-tools forge-sassc
+build_layer js-runtime mozjs gjs
+build_layer eds-primitives sqlite libnghttp2 json-glib libsecret libpsl libsoup libical
+build_layer unicode icu nspr nss
+build_layer calendar-data evolution-data-server
+build_layer crypto-primitives libgpg-error libgcrypt
+build_layer pkcs11 p11-kit
+build_layer certificate-ui gcr
+build_layer policy-primitives duktape libxcrypt
+build_layer policy polkit
 build_layer shell gnome-shell
 build_layer session gnome-session
-build_layer desktop-services polkit accountsservice upower udisks
+build_layer desktop-services accountsservice upower udisks
 
 printf '[gnome-stack] foundational GNOME stack complete\n'

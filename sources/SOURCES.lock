@@ -88,6 +88,16 @@ Version: 3.3.2
 URL: https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz
 SHA256: 2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281
 
+Source: ca-certificates
+Version: 2026.05.14
+URL: https://curl.se/ca/cacert-2026-05-14.pem
+SHA256: 86a1f3366afac7c6f8ae9f3c779ac221129328c43f0ab2b8817eb2f362a5025c
+
+Source: perl
+Version: 5.42.2
+URL: https://www.cpan.org/src/5.0/perl-5.42.2.tar.gz
+SHA256: 9384e8deb75b7b1695e5637971b752281aaecd025a3d5d4734d33c1d0adfee47
+
 Source: pkgconf
 Version: 2.3.0
 URL: https://distfiles.ariadne.space/pkgconf/pkgconf-2.3.0.tar.xz
@@ -182,6 +192,11 @@ Source: expat
 Version: 2.7.3
 URL: https://github.com/libexpat/libexpat/releases/download/R_2_7_3/expat-2.7.3.tar.xz
 SHA256: 71df8f40706a7bb0a80a5367079ea75d91da4f8c65c58ec59bcdfbf7decdab9f
+
+Source: ncurses
+Version: 6.5
+URL: https://ftp.gnu.org/gnu/ncurses/ncurses-6.5.tar.gz
+SHA256: 136d91bc269a9a5785e5f9e980bc76ab57428f604ce3e5a5a90cebc767971cc6
 
 Source: dbus
 Version: 1.16.2
@@ -407,6 +422,126 @@ Source: gnome-shell
 Version: 48.8
 URL: https://download.gnome.org/sources/gnome-shell/48/gnome-shell-48.8.tar.xz
 SHA256: cb9b7d86cf362530e648e68caaf109a32af4e832874a26791ca8789773efd233
+
+Source: mozjs
+Version: 128.4.0
+URL: https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/mozjs128/128.4.0-4/mozjs128_128.4.0.orig.tar.xz
+SHA256: 99daaf7a74c200683ecf6595b39ba91c888f7af2206a01122f9436f53f996bd5
+
+Source: rust-bin
+Version: 1.87.0
+URL: https://static.rust-lang.org/dist/rust-1.87.0-x86_64-unknown-linux-gnu.tar.xz
+SHA256: 9720bf4ffdd5e6112f8fc93a645d50bfdc64f95cb76d41561be196e1721b4b69
+
+Source: cbindgen
+Version: 0.28.0
+URL: https://github.com/mozilla/cbindgen/archive/refs/tags/0.28.0.tar.gz
+SHA256: 620d569c431f8c15b69e1455695cf4be44c11678cc08b25a35b312109baf1980
+
+Source: gjs
+Version: 1.84.2
+URL: https://download.gnome.org/sources/gjs/1.84/gjs-1.84.2.tar.xz
+SHA256: 35142edf345705636300291ec3a7d583f14969ff3fae0ff30f4a95b1e6740166
+
+Source: libsass
+Version: 3.6.6
+URL: https://github.com/sass/libsass/archive/refs/tags/3.6.6.tar.gz
+SHA256: 11f0bb3709a4f20285507419d7618f3877a425c0131ea8df40fe6196129df15d
+
+Source: sassc
+Version: 3.6.2
+URL: https://github.com/sass/sassc/archive/refs/tags/3.6.2.tar.gz
+SHA256: 608dc9002b45a91d11ed59e352469ecc05e4f58fc1259fc9a9f5b8f0f8348a03
+
+Source: at-spi2-core
+Version: 2.56.8
+URL: https://download.gnome.org/sources/at-spi2-core/2.56/at-spi2-core-2.56.8.tar.xz
+SHA256: b0e0037c3386811f06730a3c5e3e86532ebe3ecb7a7a94eb5002ed4f573b2f69
+
+Source: sqlite
+Version: 3.50.4
+URL: https://www.sqlite.org/2025/sqlite-autoconf-3500400.tar.gz
+SHA256: a3db587a1b92ee5ddac2f66b3edb41b26f9c867275782d46c3a088977d6a5b18
+
+Source: libnghttp2
+Version: 1.64.0
+URL: https://github.com/nghttp2/nghttp2/releases/download/v1.64.0/nghttp2-1.64.0.tar.xz
+SHA256: 88bb94c9e4fd1c499967f83dece36a78122af7d5fb40da2019c56b9ccc6eb9dd
+
+Source: json-glib
+Version: 1.10.8
+URL: https://download.gnome.org/sources/json-glib/1.10/json-glib-1.10.8.tar.xz
+SHA256: 55c5c141a564245b8f8fbe7698663c87a45a7333c2a2c56f06f811ab73b212dd
+
+Source: libsecret
+Version: 0.21.7
+URL: https://download.gnome.org/sources/libsecret/0.21/libsecret-0.21.7.tar.xz
+SHA256: 6b452e4750590a2b5617adc40026f28d2f4903de15f1250e1d1c40bfd68ed55e
+
+Source: libsoup
+Version: 3.6.6
+URL: https://download.gnome.org/sources/libsoup/3.6/libsoup-3.6.6.tar.xz
+SHA256: 51ed0ae06f9d5a40f401ff459e2e5f652f9a510b7730e1359ee66d14d4872740
+
+Source: libpsl
+Version: 0.21.5
+URL: https://github.com/rockdaboot/libpsl/releases/download/0.21.5/libpsl-0.21.5.tar.gz
+SHA256: 1dcc9ceae8b128f3c0b3f654decd0e1e891afc6ff81098f227ef260449dae208
+
+Source: libical
+Version: 3.0.20
+URL: https://github.com/libical/libical/archive/refs/tags/v3.0.20.tar.gz
+SHA256: e73de92f5a6ce84c1b00306446b290a2b08cdf0a80988eca0a2c9d5c3510b4c2
+
+Source: evolution-data-server
+Version: 3.56.2
+URL: https://download.gnome.org/sources/evolution-data-server/3.56/evolution-data-server-3.56.2.tar.xz
+SHA256: df4ec29950f29a76eac6fbe0f814c48d2cef7d3fdb905002a4a883dd761ce93c
+
+Source: icu
+Version: 76.1
+URL: https://github.com/unicode-org/icu/releases/download/release-76-1/icu4c-76_1-src.tgz
+SHA256: dfacb46bfe4747410472ce3e1144bf28a102feeaa4e3875bac9b4c6cf30f4f3e
+
+Source: nspr
+Version: 4.37
+URL: https://archive.mozilla.org/pub/nspr/releases/v4.37/src/nspr-4.37.tar.gz
+SHA256: 5f9344ed0e31855bd38f88b33c9d9ab94f70ce547ef3213e488d1520f61840fa
+
+Source: nss
+Version: 3.112.1
+URL: https://ftp.mozilla.org/pub/security/nss/releases/NSS_3_112_1_RTM/src/nss-3.112.1.tar.gz
+SHA256: aa3fff6f9abc0ec08ca81b603785cc0fabf1d514984aa70b24892065dd78e28a
+
+Source: libgpg-error
+Version: 1.55
+URL: https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-1.55.tar.bz2
+SHA256: 95b178148863f07d45df0cea67e880a79b9ef71f5d230baddc0071128516ef78
+
+Source: libgcrypt
+Version: 1.11.1
+URL: https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-1.11.1.tar.bz2
+SHA256: 24e91c9123a46c54e8371f3a3a2502f1198f2893fbfbf59af95bc1c21499b00e
+
+Source: p11-kit
+Version: 0.25.5
+URL: https://github.com/p11-glue/p11-kit/releases/download/0.25.5/p11-kit-0.25.5.tar.xz
+SHA256: 04d0a86450cdb1be018f26af6699857171a188ac6d5b8c90786a60854e1198e5
+
+Source: gcr
+Version: 4.4.0.1
+URL: https://download.gnome.org/sources/gcr/4.4/gcr-4.4.0.1.tar.xz
+SHA256: 0c3c341e49f9f4f2532a4884509804190a0c2663e6120360bb298c5d174a8098
+
+Source: duktape
+Version: 2.7.0
+URL: https://duktape.org/duktape-2.7.0.tar.xz
+SHA256: 90f8d2fa8b5567c6899830ddef2c03f3c27960b11aca222fa17aa7ac613c2890
+
+Source: libxcrypt
+Version: 4.4.38
+URL: https://github.com/besser82/libxcrypt/releases/download/v4.4.38/libxcrypt-4.4.38.tar.xz
+SHA256: 80304b9c306ea799327f01d9a7549bdb28317789182631f1b54f4511b4206dd6
 
 Source: gnome-session
 Version: 48.0

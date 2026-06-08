@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-libsoup
+Version: 3.6.6
+Architecture: amd64
+Description: HTTP client/server library for the Altitude desktop stack

@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-evolution-data-server
+Version: 3.56.2
+Architecture: amd64
+Description: Evolution Data Server libraries for GNOME Shell on Altitude

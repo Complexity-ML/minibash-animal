@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-libnghttp2
+Version: 1.64.0
+Architecture: amd64
+Description: HTTP/2 library for libsoup in the Altitude desktop stack

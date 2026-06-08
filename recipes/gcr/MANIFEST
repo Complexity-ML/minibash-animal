@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-gcr
+Version: 4.4.0.1
+Architecture: amd64
+Description: GNOME certificate and crypto UI library for Altitude Shell

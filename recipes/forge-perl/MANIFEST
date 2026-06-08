@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-forge-perl
+Version: 5.42.2
+Architecture: amd64
+Description: Host Perl interpreter for Altitude source recipe generation steps

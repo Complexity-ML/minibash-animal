@@ -1,0 +1,5 @@
+Package: altitude-ncurses
+Name: altitude-ncurses
+Version: 6.5
+Architecture: amd64
+Description: Terminal handling libraries and headers for Altitude

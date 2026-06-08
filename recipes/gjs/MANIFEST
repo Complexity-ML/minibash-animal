@@ -1,0 +1,5 @@
+Package: altitude-gjs
+Name: altitude-gjs
+Version: 1.84.2
+Architecture: amd64
+Description: JavaScript bindings for GNOME on Altitude

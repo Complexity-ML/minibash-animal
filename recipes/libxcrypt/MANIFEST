@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-libxcrypt
+Version: 4.4.38
+Architecture: amd64
+Description: Password hashing library providing libcrypt for Altitude

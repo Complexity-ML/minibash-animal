@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-json-glib
+Version: 1.10.8
+Architecture: amd64
+Description: JSON GLib library for the Altitude desktop stack

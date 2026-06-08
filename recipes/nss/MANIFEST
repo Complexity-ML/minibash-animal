@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-nss
+Version: 3.112.1
+Architecture: amd64
+Description: Mozilla Network Security Services for the Altitude desktop stack

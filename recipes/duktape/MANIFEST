@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-duktape
+Version: 2.7.0
+Architecture: amd64
+Description: Embeddable JavaScript engine for Altitude polkit

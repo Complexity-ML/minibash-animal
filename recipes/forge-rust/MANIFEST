@@ -1,0 +1,5 @@
+Package: altitude-forge-rust
+Name: altitude-forge-rust
+Version: 1.87.0
+Architecture: amd64
+Description: Rust bootstrap toolchain for the Altitude forge

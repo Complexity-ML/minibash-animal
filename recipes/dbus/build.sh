@@ -86,9 +86,12 @@ find "$WORK/payload/usr" -type f -perm -0100 -print0 |
     "$STRIP" --strip-unneeded "$file" 2>/dev/null || true
   done
 
-install -d "$SYSROOT/usr/include" "$SYSROOT/usr/lib"
+install -d "$SYSROOT/usr/bin" "$SYSROOT/usr/include" "$SYSROOT/usr/lib" "$FORGE/bin" "$FORGE/lib"
+[ -d "$WORK/payload/usr/bin" ] && cp -a "$WORK/payload/usr/bin/." "$SYSROOT/usr/bin/"
+[ -d "$WORK/payload/usr/bin" ] && cp -a "$WORK/payload/usr/bin/." "$FORGE/bin/"
 cp -a "$WORK/payload/usr/include/." "$SYSROOT/usr/include/"
 cp -a "$WORK/payload/usr/lib/." "$SYSROOT/usr/lib/"
+cp -a "$WORK/payload/usr/lib/." "$FORGE/lib/"
 
 {
   echo "Source: dbus"

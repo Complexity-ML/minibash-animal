@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-libgcrypt
+Version: 1.11.1
+Architecture: amd64
+Description: General purpose crypto library for the Altitude desktop stack

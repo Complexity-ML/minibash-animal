@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-forge-sassc
+Version: 3.6.2
+Architecture: amd64
+Description: SassC stylesheet compiler for the Altitude forge

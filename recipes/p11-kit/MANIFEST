@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-p11-kit
+Version: 0.25.5
+Architecture: amd64
+Description: PKCS#11 module framework for the Altitude desktop stack

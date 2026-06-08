@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-libgpg-error
+Version: 1.55
+Architecture: amd64
+Description: Common GnuPG error library for the Altitude desktop crypto stack

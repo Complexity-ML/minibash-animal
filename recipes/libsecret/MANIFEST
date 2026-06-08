@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-libsecret
+Version: 0.21.7
+Architecture: amd64
+Description: Secret Service client library for the Altitude desktop stack

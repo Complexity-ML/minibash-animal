@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-icu
+Version: 76.1
+Architecture: amd64
+Description: ICU Unicode libraries for the Altitude desktop stack

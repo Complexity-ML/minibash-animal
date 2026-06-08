@@ -11,11 +11,15 @@ JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)}"
 TARGET="${ALTITUDE_TARGET_TRIPLET:-x86_64-altitude-linux-gnu}"
 TOOLCHAIN_ROOT="${ALTITUDE_TOOLCHAIN_ROOT:-}"
 TOOLCHAIN="$TOOLCHAIN_ROOT/opt/altitude/toolchain"
+SYSROOT="$TOOLCHAIN/sysroot"
 CC="${CC:-$TOOLCHAIN/bin/$TARGET-gcc}"
 AR="${AR:-$TOOLCHAIN/bin/$TARGET-ar}"
 RANLIB="${RANLIB:-$TOOLCHAIN/bin/$TARGET-ranlib}"
 STRIP="${STRIP:-$TOOLCHAIN/bin/$TARGET-strip}"
+PKG_CONFIG="${PKG_CONFIG:-/opt/altitude/forge/bin/pkg-config}"
 TARBALL="$(bash "$ROOT/scripts/source-fetch.sh" python-build-runtime)"
+
+export PATH="$PREFIX/bin:$PATH"
 
 for tool in "$CC" "$AR" "$RANLIB" "$STRIP"; do
   [ -x "$tool" ] || { echo "python-build-runtime: missing build tool: $tool" >&2; exit 1; }
@@ -44,12 +48,20 @@ mv "$WORK/source/Include/pyport.h.altitude" "$WORK/source/Include/pyport.h"
 
 (
   cd "$WORK/build"
-  CC="$CC" AR="$AR" RANLIB="$RANLIB" "$WORK/source/configure" \
+  CC="$CC" AR="$AR" RANLIB="$RANLIB" \
+  PKG_CONFIG="$PKG_CONFIG" \
+  PKG_CONFIG_LIBDIR="$SYSROOT/usr/lib/pkgconfig:$SYSROOT/usr/lib64/pkgconfig:$SYSROOT/usr/share/pkgconfig" \
+  PKG_CONFIG_SYSROOT_DIR="$SYSROOT" \
+  CPPFLAGS="-I$SYSROOT/usr/include" \
+  LDFLAGS="-L$SYSROOT/usr/lib64 -L$SYSROOT/usr/lib -Wl,-rpath,/opt/altitude/toolchain/sysroot/usr/lib64" \
+    "$WORK/source/configure" \
     --prefix="$PREFIX" \
     --disable-test-modules \
     --without-ensurepip
-make -j"$JOBS" CC="$CC" AR="$AR" RANLIB="$RANLIB"
-  make DESTDIR="$WORK/payload" altinstall
+  LD_LIBRARY_PATH="$SYSROOT/usr/lib64:$SYSROOT/usr/lib:$TOOLCHAIN/$TARGET/lib64:${LD_LIBRARY_PATH:-}" \
+    make -j"$JOBS" CC="$CC" AR="$AR" RANLIB="$RANLIB"
+  LD_LIBRARY_PATH="$SYSROOT/usr/lib64:$SYSROOT/usr/lib:$TOOLCHAIN/$TARGET/lib64:${LD_LIBRARY_PATH:-}" \
+    make DESTDIR="$WORK/payload" altinstall
 )
 
 ln -sf "python$ABI_VERSION" "$WORK/payload$PREFIX/bin/python3"
@@ -75,8 +87,9 @@ find "$WORK/payload$PREFIX/bin" -type f -perm -0100 \
   echo "Compiler: $("$CC" --version | head -1)"
 } > "$WORK/payload/usr/share/altitude/sources/python-build-runtime.build"
 
-"$WORK/payload$PREFIX/bin/python3" -c \
-  'import json, pathlib, subprocess, sys; assert sys.version_info[:2] == (3, 13)'
+LD_LIBRARY_PATH="$SYSROOT/usr/lib64:$SYSROOT/usr/lib:$TOOLCHAIN/$TARGET/lib64:${LD_LIBRARY_PATH:-}" \
+  "$WORK/payload$PREFIX/bin/python3" -c \
+  'import ctypes, curses, json, pathlib, ssl, subprocess, sys, uuid; assert sys.version_info[:2] == (3, 13)'
 
 bash "$ROOT/rootfs/bin/altpkg-build" \
   "$ROOT/recipes/python-build-runtime/MANIFEST" "$WORK/payload" \

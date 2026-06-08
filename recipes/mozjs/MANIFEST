@@ -1,0 +1,5 @@
+Package: altitude-mozjs
+Name: altitude-mozjs
+Version: 128.4.0
+Architecture: amd64
+Description: SpiderMonkey JavaScript engine for Altitude GNOME
