@@ -12,8 +12,11 @@ CC="$TOOLCHAIN/bin/$TARGET-gcc"
 AR="$TOOLCHAIN/bin/$TARGET-ar"
 RANLIB="$TOOLCHAIN/bin/$TARGET-ranlib"
 STRIP="$TOOLCHAIN/bin/$TARGET-strip"
+SIZE="$TOOLCHAIN/bin/$TARGET-size"
+READELF="$TOOLCHAIN/bin/$TARGET-readelf"
+export PATH="$TOOLCHAIN/bin:$PATH"
 
-for tool in "$CC" "$AR" "$RANLIB" "$STRIP"; do
+for tool in "$CC" "$AR" "$RANLIB" "$STRIP" "$SIZE" "$READELF"; do
   [ -x "$tool" ] || {
     echo "bash: Altitude toolchain component missing: $tool" >&2
     exit 1
@@ -36,7 +39,7 @@ tar -xf "$TARBALL" -C "$WORK/source" --strip-components=1
       --disable-nls \
       --disable-rpath \
       --enable-static-link
-  make -j"$JOBS"
+  make -j"$JOBS" SIZE="$SIZE"
 )
 
 install -m755 "$WORK/build/bash" "$WORK/payload/bin/bash"
@@ -51,8 +54,12 @@ ln -s bash "$WORK/payload/bin/sh"
   echo "Compiler: $("$CC" --version | head -1)"
 } > "$WORK/payload/usr/share/altitude/sources/bash.build"
 
-ldd_output="$(ldd "$WORK/payload/bin/bash" 2>&1 || true)"
-grep -Eq 'not a dynamic executable|statically linked' <<< "$ldd_output"
+if command -v ldd >/dev/null 2>&1; then
+  ldd_output="$(ldd "$WORK/payload/bin/bash" 2>&1 || true)"
+  grep -Eq 'not a dynamic executable|statically linked' <<< "$ldd_output"
+else
+  ! "$READELF" -l "$WORK/payload/bin/bash" | grep -q 'Requesting program interpreter'
+fi
 "$WORK/payload/bin/bash" --version | grep -q 'version 5.3'
 
 bash "$ROOT/rootfs/bin/altpkg-build" \

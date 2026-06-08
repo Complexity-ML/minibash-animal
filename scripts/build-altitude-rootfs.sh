@@ -21,9 +21,12 @@ require_package() {
 }
 
 base_packages=(
-  altitude-base
+  altitude-base-runtime
+  altitude-busybox
+  altitude-bash
   altitude-kernel
-  altitude-firmware
+  altitude-dropbear
+  altitude-wpa-supplicant
   altitude-identity
   altitude-core
   altitude-services
@@ -46,12 +49,15 @@ desktop_packages=(
   altitude-gnome-desktop
   altitude-mutter
   altitude-gnome-shell
-  altitude-gnome-session
+  # GNOME Shell runtime is included in the desktop image. gnome-session 48 still
+  # hard-requires GTK3 + libsystemd upstream; keep it out until the Altitude
+  # elogind/non-systemd port is implemented instead of shipping a broken package.
   altitude-elogind
   altitude-polkit
-  altitude-accountsservice
-  altitude-upower
-  altitude-udisks
+  # Desktop service daemons are tracked as recipes, but are not hard
+  # requirements for the first non-minimal GNOME Shell image yet:
+  # accountsservice currently needs json-c, and udisks/upower need their
+  # own service integration before they are useful in Altitude's init model.
 )
 
 packages=("${base_packages[@]}")
@@ -73,5 +79,10 @@ bash "$ROOT/scripts/assemble-altitude-rootfs.sh" "$REPO" "$DEST" "${packages[@]}
 mkdir -p "$DEST"/{dev,proc,run,sys,tmp}
 chmod 1777 "$DEST/tmp"
 
-tar --numeric-owner --owner=0 --group=0 -czf "$ROOTFS_TGZ" -C "$DEST" .
+tar_args=(-czf "$ROOTFS_TGZ" -C "$DEST" .)
+if tar --help 2>&1 | grep -q -- '--owner'; then
+  tar --numeric-owner --owner=0 --group=0 "${tar_args[@]}"
+else
+  tar --numeric-owner "${tar_args[@]}"
+fi
 echo "Altitude $PROFILE rootfs: $ROOTFS_TGZ"

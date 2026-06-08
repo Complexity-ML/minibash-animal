@@ -36,8 +36,9 @@ EOF
   # chain leaves MB_LEN_MAX at the freestanding 1, so glibc's bits/stdlib.h
   # FORTIFY assert fails). dropbear stays fully functional; fixing the toolchain
   # fixinc/limits.h is a separate follow-up.
-  ./configure --host="$TARGET" CC="${CROSS}gcc" \
+  ac_cv_lib_crypt_crypt=no ac_cv_func_crypt=no ./configure --host="$TARGET" CC="${CROSS}gcc" \
     --disable-zlib --disable-pam --disable-wtmp --disable-lastlog --disable-harden
+  sed -i.bak 's/[[:space:]]-lcrypt//g' Makefile
   make -j"$JOBS" PROGRAMS="dropbear dropbearkey scp dbclient" STATIC=1
 )
 

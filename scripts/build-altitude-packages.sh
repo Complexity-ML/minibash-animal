@@ -3,8 +3,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${ALTITUDE_PACKAGE_OUT:-$ROOT/out/packages}"
+SOURCE_OUT="${ALTITUDE_SOURCE_PACKAGE_OUT:-$ROOT/out/source-packages}"
+EXTRA_OUT="${ALTITUDE_EXTRA_PACKAGE_OUT:-$ROOT/out}"
 REPO="${ALTITUDE_REPO_ROOT:-$ROOT/out/repository}"
 BUILDER="$ROOT/rootfs/bin/altpkg-build"
+INCLUDE_SOURCE_PACKAGES="${ALTITUDE_INCLUDE_SOURCE_PACKAGES:-1}"
 
 mkdir -p "$OUT"
 rm -f "$OUT"/*.altpkg
@@ -45,8 +48,18 @@ fi
 for package in "$OUT"/*.altpkg; do
   ALTITUDE_REPO_ROOT="$REPO" bash "$ROOT/rootfs/bin/altrepo" add "$package"
 done
+if [ "$INCLUDE_SOURCE_PACKAGES" = 1 ] && compgen -G "$SOURCE_OUT/*.altpkg" >/dev/null; then
+  for package in "$SOURCE_OUT"/*.altpkg; do
+    ALTITUDE_REPO_ROOT="$REPO" bash "$ROOT/rootfs/bin/altrepo" add "$package"
+  done
+fi
+if [ "$INCLUDE_SOURCE_PACKAGES" = 1 ] && compgen -G "$EXTRA_OUT/*.altpkg" >/dev/null; then
+  for package in "$EXTRA_OUT"/*.altpkg; do
+    ALTITUDE_REPO_ROOT="$REPO" bash "$ROOT/rootfs/bin/altrepo" add "$package"
+  done
+fi
 if command -v xattr >/dev/null 2>&1; then
-  xattr -cr "$OUT" "$REPO"
+  xattr -cr "$OUT" "$SOURCE_OUT" "$EXTRA_OUT" "$REPO"
 fi
 ALTITUDE_REPO_ROOT="$REPO" bash "$ROOT/rootfs/bin/altrepo" verify
 echo "Altitude repository: $REPO"

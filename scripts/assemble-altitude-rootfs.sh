@@ -60,14 +60,33 @@ validate_archive() {
     case "/$entry/" in */../*|*/./*) die "unsafe archive path: $entry" ;; esac
   done < <(tar -tf "$archive")
 }
+merge_payload_tree() {
+  local source="$1" destination="$2" entry base target
+  mkdir -p "$destination"
+  (
+    shopt -s dotglob nullglob
+    for entry in "$source"/*; do
+      base="${entry##*/}"
+      target="$destination/$base"
+      if [ -d "$entry" ] && [ -e "$target" ]; then
+        merge_payload_tree "$entry" "$target"
+      else
+        cp -a "$entry" "$destination/"
+      fi
+    done
+  )
+}
 install_payload() {
   local payload="$1" destination="$2"
   if [ -z "$(find "$destination" -mindepth 1 -print -quit)" ]; then
     cp -a "$payload/." "$destination/"
     return
   fi
-  command -v rsync >/dev/null || die "rsync is required to merge packages"
-  rsync -a --keep-dirlinks "$payload/" "$destination/"
+  if command -v rsync >/dev/null; then
+    rsync -a --keep-dirlinks "$payload/" "$destination/"
+  else
+    merge_payload_tree "$payload" "$destination"
+  fi
 }
 
 [ -f "$REPO/INDEX" ] || die "repository index missing"

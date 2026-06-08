@@ -25,7 +25,7 @@ tar -xf "$TARBALL" -C "$WORK/source" --strip-components=1
 sed -i '1i #ifndef LONG_BIT\n#define LONG_BIT (__SIZEOF_LONG__ * 8)\n#endif' \
   "$WORK/source/networking/tls_aesgcm.c"
 
-make -C "$WORK/source" defconfig >/dev/null
+make -C "$WORK/source" HOSTCC="$HOSTCOMPILER" defconfig >/dev/null
 set_config() {
   local symbol="$1" value="$2" config="$WORK/source/.config"
   sed -i "/^CONFIG_${symbol}=/d;/^# CONFIG_${symbol} is not set/d" "$config"
@@ -40,7 +40,12 @@ set_config FEATURE_SH_STANDALONE y
 set_config FEATURE_PREFER_APPLETS y
 set_config TC n
 set_config FEATURE_TC_INGRESS n
-make -C "$WORK/source" CC="$COMPILER" HOSTCC="$HOSTCOMPILER" -j"$JOBS"
+make -C "$WORK/source" CC="$COMPILER" HOSTCC="$HOSTCOMPILER" \
+  AR="${AR:-x86_64-altitude-linux-gnu-ar}" \
+  LD="${LD:-x86_64-altitude-linux-gnu-ld}" \
+  NM="${NM:-x86_64-altitude-linux-gnu-nm}" \
+  STRIP="${STRIP:-x86_64-altitude-linux-gnu-strip}" \
+  -j"$JOBS"
 
 install -m 755 "$WORK/source/busybox" \
   "$WORK/payload/usr/libexec/altitude/busybox"

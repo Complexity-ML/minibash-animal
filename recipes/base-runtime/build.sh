@@ -6,13 +6,14 @@ OUT="${ALTITUDE_RECIPE_OUT:-$ROOT/out/source-packages}"
 WORK="${ALTITUDE_RECIPE_WORK:-$ROOT/out/source-work/base-runtime}"
 TOOLCHAIN=/opt/altitude/toolchain
 CC="$TOOLCHAIN/bin/x86_64-altitude-linux-gnu-gcc"
+READELF="$TOOLCHAIN/bin/x86_64-altitude-linux-gnu-readelf"
 BUSYBOX_WORK="${ALTITUDE_BUSYBOX_WORK:-$ROOT/out/source-work/busybox}"
 BASH_WORK="${ALTITUDE_BASH_WORK:-$ROOT/out/source-work/bash}"
 BUSYBOX="$BUSYBOX_WORK/payload/usr/libexec/altitude/busybox"
 BASH="$BASH_WORK/payload/bin/bash"
 PAYLOAD="$WORK/payload"
 
-for input in "$CC" "$BUSYBOX" "$BASH" \
+for input in "$CC" "$READELF" "$BUSYBOX" "$BASH" \
   "$ROOT/rootfs/usr/src/minibash/bdbc.c"; do
   [ -e "$input" ] || {
     echo "base-runtime: missing build input: $input" >&2
@@ -42,7 +43,11 @@ ln -s sbin/init "$PAYLOAD/init"
 "$CC" -O2 -static -Wall -Wextra \
   -o "$PAYLOAD/bin/bdbc" "$ROOT/rootfs/usr/src/minibash/bdbc.c"
 ldd_output="$(ldd "$PAYLOAD/bin/bdbc" 2>&1 || true)"
-grep -Eq 'not a dynamic executable|statically linked' <<< "$ldd_output"
+if command -v ldd >/dev/null 2>&1; then
+  grep -Eq 'not a dynamic executable|statically linked' <<< "$ldd_output"
+else
+  ! "$READELF" -l "$PAYLOAD/bin/bdbc" | grep -q 'Requesting program interpreter'
+fi
 
 for path in \
   bin/altitude bin/bdb bin/bdbql bin/bdbsh bin/bdbctl bin/bdbreg bin/bdbconf \
@@ -77,6 +82,7 @@ mount -t devpts devpts /dev/pts 2>/dev/null || true
 mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
 mount -t tmpfs tmpfs /run 2>/dev/null || true
 chmod 1777 /tmp /dev/shm
+ln -sfn /proc/self/fd /dev/fd
 hostname altitude
 echo /sbin/modprobe > /proc/sys/kernel/modprobe 2>/dev/null || true
 if [ ! -f /var/bdb/tables/services/data.bdb ]; then
