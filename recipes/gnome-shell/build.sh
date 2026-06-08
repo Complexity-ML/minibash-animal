@@ -98,6 +98,8 @@ meson setup "$WORK/build" "$WORK/source" \
   -Dgtk_doc=false -Dman=false -Dtests=false \
   -Dnetworkmanager=false -Dportal_helper=false -Dsystemd=false
 DESTDIR="$PAYLOAD" meson install -C "$WORK/build"
+install -Dm644 "$ROOT/recipes/gnome-shell/org.gnome.settings-daemon.altitude.gschema.xml" \
+  "$PAYLOAD/usr/share/glib-2.0/schemas/org.gnome.settings-daemon.altitude.gschema.xml"
 
 find "$PAYLOAD/usr" -type f -perm -0100 -print0 |
   while IFS= read -r -d '' file; do

@@ -493,6 +493,11 @@ Version: 4.4.4
 URL: https://download.gnome.org/sources/libgweather/4.4/libgweather-4.4.4.tar.xz
 SHA256: 7017677753cdf7d1fdc355e4bfcdb1eba8369793a8df24d241427a939cbf4283
 
+Source: ibus
+Version: 1.5.31
+URL: https://deb.debian.org/debian/pool/main/i/ibus/ibus_1.5.31.orig.tar.gz
+SHA256: 5093994c8342551134c81f2d271575efbc459bb756cef1173c22430c8601a1e1
+
 Source: json-c
 Version: 0.18
 URL: https://s3.amazonaws.com/json-c_releases/releases/json-c-0.18.tar.gz

@@ -70,6 +70,8 @@ meson setup "$WORK/build" "$WORK/source" \
   -Dtcpwrap=disabled -Dvalgrind=disabled -Dx11=disabled \
   -Dbashcompletiondir=no -Dzshcompletiondir=no
 DESTDIR="$PAYLOAD" meson install -C "$WORK/build"
+ln -sf pulseaudio/libpulsecommon-$VERSION.so \
+  "$PAYLOAD/usr/lib/libpulsecommon-$VERSION.so"
 
 find "$PAYLOAD/usr/lib" -type f -name '*.so*' -exec "$STRIP" --strip-unneeded {} + 2>/dev/null || true
 cp -a "$PAYLOAD/usr/." "$SYSROOT/usr/"

@@ -101,6 +101,9 @@ meson setup "$WORK/build" "$WORK/source" \
 meson compile -C "$WORK/build"
 DESTDIR="$PAYLOAD" meson install -C "$WORK/build"
 
+install -Dm644 "$WORK/source/data/org.gnome.login-screen.gschema.xml" \
+  "$PAYLOAD/usr/share/glib-2.0/schemas/org.gnome.login-screen.gschema.xml"
+
 find "$PAYLOAD/usr" -type f -perm -0100 -print0 |
   while IFS= read -r -d '' file; do
     "$STRIP" --strip-unneeded "$file" 2>/dev/null || true

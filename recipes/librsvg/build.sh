@@ -27,7 +27,7 @@ export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
 for tool in "$CC" "$AR" "$RANLIB" "$STRIP" "$PKG_CONFIG" glib-mkenums sed; do
   command -v "$tool" >/dev/null || { echo "librsvg: missing build tool: $tool" >&2; exit 1; }
 done
-for dep in gdk-pixbuf-2.0 glib-2.0 gio-2.0 libxml-2.0 pangocairo pangoft2 cairo cairo-png libcroco-0.6; do
+for dep in gdk-pixbuf-2.0 glib-2.0 gio-2.0 libxml-2.0 pangocairo pangoft2 cairo cairo-png libcroco-0.6 gobject-introspection-1.0; do
   "$PKG_CONFIG" --exists "$dep" ||
     { echo "librsvg: target dependency is missing: $dep" >&2; exit 1; }
 done
@@ -47,7 +47,16 @@ BUILD_TRIPLET="$("$WORK/source/config.guess")"
       --prefix=/usr --libdir=/usr/lib \
       --enable-shared --enable-static \
       --disable-pixbuf-loader --disable-gtk-doc --disable-tools \
-      --enable-introspection=no --enable-vala=no
+      --enable-introspection=yes --enable-vala=no
+  for makefile in Makefile; do
+    [ -f "$makefile" ] || continue
+    sed -i \
+      -e "s|$SYSROOT$SYSROOT/../../forge/bin/g-ir-scanner|$FORGE/bin/g-ir-scanner|g" \
+      -e "s|$SYSROOT$SYSROOT/../../forge/bin/g-ir-compiler|$FORGE/bin/g-ir-compiler|g" \
+      -e "s|$SYSROOT$SYSROOT/usr/bin/g-ir-generate|$FORGE/bin/g-ir-generate|g" \
+      -e "s|$SYSROOT$SYSROOT/usr/share/gobject-introspection-1.0/Makefile.introspection|$SYSROOT/usr/share/gobject-introspection-1.0/Makefile.introspection|g" \
+      "$makefile"
+  done
   make -j"$JOBS"
   make DESTDIR="$PAYLOAD" install
 )

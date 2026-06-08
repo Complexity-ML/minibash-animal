@@ -53,6 +53,8 @@ desktop_packages=(
   altitude-geoclue
   altitude-geocode-glib
   altitude-libgweather
+  altitude-ibus
+  altitude-upower
   altitude-mutter
   altitude-gnome-shell
   altitude-gnome-session

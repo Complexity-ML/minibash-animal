@@ -40,6 +40,8 @@ rm -rf "$WORK"
 mkdir -p "$WORK/source" "$WORK/build" "$WORK/tools" \
   "$PAYLOAD/usr/share/altitude/sources" "$OUT"
 tar -xf "$TARBALL" -C "$WORK/source" --strip-components=1
+cp "$ROOT/recipes/libgweather/gen_locations_variant_ctypes.py" \
+  "$WORK/source/build-aux/meson/gen_locations_variant_ctypes.py"
 
 cat > "$WORK/tools/ldd" <<EOF
 #!/bin/sh
@@ -93,6 +95,12 @@ meson setup "$WORK/build" "$WORK/source" \
   -Dgtk_doc=false -Dtests=false
 meson compile -C "$WORK/build"
 DESTDIR="$PAYLOAD" meson install -C "$WORK/build"
+
+mkdir -p "$PAYLOAD/usr/lib/libgweather-4" "$PAYLOAD/usr/share/libgweather-4"
+"$FORGE/bin/python3" "$WORK/source/build-aux/meson/gen_locations_variant_ctypes.py" \
+  "$WORK/source/data/Locations.xml" "$PAYLOAD/usr/lib/libgweather-4/Locations.bin"
+cp "$WORK/source/data/Locations.xml" "$WORK/source/data/locations.dtd" \
+  "$PAYLOAD/usr/share/libgweather-4/"
 
 if command -v glib-compile-schemas >/dev/null 2>&1 &&
    [ -d "$PAYLOAD/usr/share/glib-2.0/schemas" ]; then
