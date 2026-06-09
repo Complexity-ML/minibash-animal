@@ -1,0 +1,88 @@
+#!/usr/bin/env gjs
+
+imports.gi.versions.Gtk = '4.0';
+
+const ByteArray = imports.byteArray;
+const { Gio, GLib, Gtk } = imports.gi;
+
+function bytesToString(bytes) {
+    return bytes ? ByteArray.toString(bytes) : '';
+}
+
+const app = new Gtk.Application({
+    application_id: 'org.altitude.CommandRunner',
+    flags: Gio.ApplicationFlags.FLAGS_NONE,
+});
+
+app.connect('activate', application => {
+    const win = new Gtk.ApplicationWindow({
+        application,
+        title: 'Altitude Command Runner',
+        default_width: 900,
+        default_height: 560,
+    });
+
+    const root = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 8,
+        margin_top: 14,
+        margin_bottom: 14,
+        margin_start: 14,
+        margin_end: 14,
+    });
+
+    const entry = new Gtk.Entry({
+        text: 'ip -4 a',
+        hexpand: true,
+    });
+    const runButton = new Gtk.Button({ label: 'Run' });
+    const top = new Gtk.Box({
+        orientation: Gtk.Orientation.HORIZONTAL,
+        spacing: 8,
+    });
+    top.append(entry);
+    top.append(runButton);
+    root.append(top);
+
+    const view = new Gtk.TextView({
+        editable: false,
+        monospace: true,
+        hexpand: true,
+        vexpand: true,
+    });
+    const buffer = view.get_buffer();
+    root.append(new Gtk.ScrolledWindow({
+        child: view,
+        hexpand: true,
+        vexpand: true,
+    }));
+
+    function run() {
+        const command = entry.get_text();
+        let text;
+        try {
+            const [ok, stdout, stderr, status] = GLib.spawn_sync(
+                null,
+                ['/bin/bash', '-lc', command],
+                null,
+                GLib.SpawnFlags.SEARCH_PATH,
+                null
+            );
+            text = `$ ${command}\n\n${bytesToString(stdout)}${bytesToString(stderr)}`;
+            if (!ok || status !== 0)
+                text += `\nexit: ${status}\n`;
+        } catch (e) {
+            text = `$ ${command}\n\n${e.message}\n`;
+        }
+        buffer.set_text(text, -1);
+    }
+
+    runButton.connect('clicked', run);
+    entry.connect('activate', run);
+
+    win.set_child(root);
+    win.present();
+    run();
+});
+
+app.run(ARGV);

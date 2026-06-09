@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Altitude Control Center
+Comment=Inspect Altitude services, registry, packages and logs
+Exec=/bin/altitude-control-center
+Icon=applications-system
+Terminal=false
+Categories=System;Settings;Utility;
+Keywords=altitude;bdb;services;registry;packages;logs;

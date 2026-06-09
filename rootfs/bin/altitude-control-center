@@ -1,0 +1,97 @@
+#!/usr/bin/env gjs
+
+imports.gi.versions.Gtk = '4.0';
+
+const ByteArray = imports.byteArray;
+const { Gio, GLib, Gtk } = imports.gi;
+
+function bytesToString(bytes) {
+    return bytes ? ByteArray.toString(bytes) : '';
+}
+
+function runCommand(argv) {
+    try {
+        const [ok, stdout, stderr, status] =
+            GLib.spawn_sync(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null);
+        const out = bytesToString(stdout);
+        const err = bytesToString(stderr);
+        return `$ ${argv.join(' ')}\n\n${out}${err}${ok ? '' : `\nexit: ${status}\n`}`;
+    } catch (e) {
+        return `$ ${argv.join(' ')}\n\n${e.message}\n`;
+    }
+}
+
+const app = new Gtk.Application({
+    application_id: 'org.altitude.ControlCenter',
+    flags: Gio.ApplicationFlags.FLAGS_NONE,
+});
+
+app.connect('activate', application => {
+    const win = new Gtk.ApplicationWindow({
+        application,
+        title: 'Altitude Control Center',
+        default_width: 920,
+        default_height: 620,
+    });
+
+    const root = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 10,
+        margin_top: 14,
+        margin_bottom: 14,
+        margin_start: 14,
+        margin_end: 14,
+    });
+
+    const title = new Gtk.Label({
+        label: '<b>Altitude Control Center</b>\nBDB, services, network and package state.',
+        use_markup: true,
+        xalign: 0,
+    });
+    root.append(title);
+
+    const buttons = new Gtk.Box({
+        orientation: Gtk.Orientation.HORIZONTAL,
+        spacing: 8,
+    });
+    root.append(buttons);
+
+    const view = new Gtk.TextView({
+        editable: false,
+        monospace: true,
+        hexpand: true,
+        vexpand: true,
+    });
+    const buffer = view.get_buffer();
+    const scroller = new Gtk.ScrolledWindow({
+        child: view,
+        hexpand: true,
+        vexpand: true,
+    });
+    root.append(scroller);
+
+    function show(label, argv) {
+        buffer.set_text(`${label}\n${'='.repeat(label.length)}\n\n${runCommand(argv)}`, -1);
+    }
+
+    const actions = [
+        ['Overview', ['/bin/bash', '-lc', 'hostname; echo; cat /etc/os-release; echo; uname -a; echo; ip -4 a']],
+        ['Services', ['/bin/bash', '-lc', '/bin/bdb select services 2>&1 || /bin/bdb dump services 2>&1']],
+        ['Modules', ['/bin/bash', '-lc', '/bin/bdb select modules 2>&1 || /bin/bdb dump modules 2>&1']],
+        ['Registry', ['/bin/bash', '-lc', '/bin/bdb select registry 2>&1 || /bin/bdb dump registry 2>&1']],
+        ['Packages', ['/bin/bash', '-lc', '/bin/pkg list 2>&1 || find /usr/share/altitude/sources -type f -maxdepth 1 2>/dev/null | sort']],
+        ['GNOME Log', ['/bin/bash', '-lc', 'tail -160 /var/log/gnome-shell.log 2>&1']],
+    ];
+
+    for (const [label, argv] of actions) {
+        const button = new Gtk.Button({ label });
+        button.connect('clicked', () => show(label, argv));
+        buttons.append(button);
+    }
+
+    win.set_child(root);
+    win.present();
+    show('Overview', actions[0][1]);
+});
+
+app.run(ARGV);

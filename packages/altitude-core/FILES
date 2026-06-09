@@ -5,8 +5,11 @@ bin/bdbctl
 bin/bdbreg
 bin/bdbconf
 bin/bashsvc
+bin/altitude-control-center
+bin/altitude-command-runner
 bin/pkg
 bin/altpkg-build
 bin/altrepo
 etc/minibash/system.conf
 etc/altitude/repositories.conf
+usr/share/applications

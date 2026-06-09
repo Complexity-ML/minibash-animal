@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Altitude Command Runner
+Comment=Run Altitude shell commands from GNOME
+Exec=/bin/altitude-command-runner
+Icon=utilities-terminal
+Terminal=false
+Categories=System;Utility;TerminalEmulator;
+Keywords=altitude;shell;command;terminal;
