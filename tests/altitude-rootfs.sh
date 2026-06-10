@@ -55,7 +55,10 @@ bash "$ROOT/scripts/assemble-altitude-rootfs.sh" "$TMP/repository" \
   altitude-desktop-base
 grep -q '^NAME="Altitude Linux"$' "$TMP/final-root/etc/os-release"
 [ -x "$TMP/final-root/bin/pkg" ]
+[ -x "$TMP/final-root/bin/altitude-health" ]
 [ -x "$TMP/final-root/services/pkgd.sh" ]
+[ -f "$TMP/final-root/etc/systemd/system/altitude-health.timer" ]
+[ "$(readlink "$TMP/final-root/etc/systemd/system/timers.target.wants/altitude-health.timer")" = ../altitude-health.timer ]
 [ -f "$TMP/final-root/root/.ssh/authorized_keys" ]
 grep -q '^PROFILE=desktop$' "$TMP/final-root/etc/altitude/desktop-base.conf"
 

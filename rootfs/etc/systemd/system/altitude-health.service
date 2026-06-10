@@ -1,0 +1,8 @@
+[Unit]
+Description=Write Altitude boot and desktop health snapshot
+After=altitude-seed.service altitude-systemd-audit.service multi-user.target
+Wants=altitude-seed.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/altitude-health refresh

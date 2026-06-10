@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+# Runtime health snapshot for Altitude Linux.
+#
+# This is deliberately observational: it reads procfs, systemd, logs and the
+# registry, then writes health facts back to the registry. It does not manage
+# services.
+set -u
+
+LOG="${ALTITUDE_HEALTH_LOG:-/var/log/altitude-health.log}"
+REG="${ALTITUDE_REGISTRY_BIN:-/bin/bdbreg}"
+OWNER=altitude-health
+
+usage() {
+  cat <<'EOF'
+usage: altitude-health [refresh|summary|watch]
+
+refresh  collect one health snapshot, update registry and append the log
+summary  collect one snapshot and print it
+watch    keep collecting every ALTITUDE_HEALTH_INTERVAL seconds
+EOF
+}
+
+now_iso() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date 2>/dev/null || echo unknown
+}
+
+registry_set() {
+  local path="$1" type="$2" value="$3"
+  [ -x "$REG" ] || return 0
+  "$REG" set "$path" "$type" "$value" "$OWNER" >/dev/null 2>&1 || true
+}
+
+bool() {
+  if "$@"; then echo true; else echo false; fi
+}
+
+first_global_ipv4() {
+  ip -4 addr 2>/dev/null |
+    awk '
+      /^[0-9]+:/ { iface=$2; sub(/:$/, "", iface) }
+      / inet / && iface != "lo" { print iface " " $2; exit }
+    '
+}
+
+is_active() {
+  command -v systemctl >/dev/null 2>&1 || return 1
+  systemctl is-active --quiet "$1" 2>/dev/null
+}
+
+unit_state() {
+  command -v systemctl >/dev/null 2>&1 || {
+    echo missing
+    return
+  }
+  systemctl is-active "$1" 2>/dev/null || true
+}
+
+failed_units_count() {
+  command -v systemctl >/dev/null 2>&1 || {
+    echo 0
+    return
+  }
+  systemctl list-units --failed --no-legend --no-pager 2>/dev/null |
+    awk 'END { print NR + 0 }'
+}
+
+status_line() {
+  printf '%-12s %-5s %s\n' "$1" "$2" "$3"
+}
+
+collect() {
+  local ts overall=ok failed_units pid1 pid1_ok root_rw root_src root_fs
+  local systemd_state network iface addr wifi_ok ssh_ok graphical_state
+  local shell_pid shell_ok gdm_state gpu_render gpu_accel pressure_cpu
+  local messages status
+
+  ts="$(now_iso)"
+  failed_units="$(failed_units_count)"
+  pid1="$(cat /proc/1/comm 2>/dev/null || echo unknown)"
+  pid1_ok="$(bool [ "$pid1" = systemd ])"
+  root_src="$(awk '$2 == "/" { print $1; exit }' /proc/mounts 2>/dev/null || echo unknown)"
+  root_fs="$(awk '$2 == "/" { print $3; exit }' /proc/mounts 2>/dev/null || echo unknown)"
+  root_rw="$(awk '$2 == "/" { print $4; exit }' /proc/mounts 2>/dev/null | grep -qw rw && echo true || echo false)"
+  systemd_state="$(command -v systemctl >/dev/null 2>&1 && systemctl is-system-running 2>/dev/null || echo unavailable)"
+
+  network="$(first_global_ipv4 || true)"
+  iface="${network%% *}"
+  addr="${network#* }"
+  [ "$iface" != "$addr" ] || { iface=none; addr=none; }
+  wifi_ok=false
+  case "$iface" in wl*|wlan*) [ "${addr:-none}" != none ] && wifi_ok=true ;; esac
+
+  ssh_ok="$(bool pgrep -x dropbear >/dev/null 2>&1)"
+  graphical_state="$(unit_state altitude-graphical.service)"
+  shell_pid="$(pgrep -x gnome-shell 2>/dev/null | head -n 1 || true)"
+  shell_ok="$(bool [ -n "$shell_pid" ])"
+  gdm_state="$(unit_state gdm.service)"
+  gpu_render="$(bool [ -e /dev/dri/renderD128 ])"
+  gpu_accel=true
+  grep -q 'Not hardware accelerated' /var/log/gnome-shell.log 2>/dev/null && gpu_accel=false
+  pressure_cpu="$(awk '$1 == "some" { for (i = 2; i <= NF; i++) { split($i, kv, "="); if (kv[1] == "avg10") { print int(kv[2]); exit } } }' /proc/pressure/cpu 2>/dev/null || echo 0)"
+
+  messages=""
+  [ "$pid1_ok" = true ] || { overall=fail; messages="${messages} pid1=$pid1"; }
+  [ "$root_rw" = true ] || { overall=fail; messages="${messages} rootfs-readonly"; }
+  [ "$wifi_ok" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} wifi=no-ip"; }
+  [ "$ssh_ok" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} ssh=down"; }
+  [ "$shell_ok" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} gnome-shell=down"; }
+  [ "$gpu_accel" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} gpu=software"; }
+  [ "${failed_units:-0}" = 0 ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} failed-units=$failed_units"; }
+  [ -n "$messages" ] || messages="all primary checks passed"
+
+  registry_set /system/health/overall string "$overall"
+  registry_set /system/health/updated-at string "$ts"
+  registry_set /system/health/messages string "$messages"
+  registry_set /system/health/pid1 bool "$pid1_ok"
+  registry_set /system/health/rootfs-rw bool "$root_rw"
+  registry_set /system/health/wifi bool "$wifi_ok"
+  registry_set /system/health/ssh bool "$ssh_ok"
+  registry_set /system/health/gnome-shell bool "$shell_ok"
+  registry_set /system/health/gpu-render bool "$gpu_render"
+  registry_set /system/health/gpu-accelerated bool "$gpu_accel"
+  registry_set /system/health/systemd-state string "$systemd_state"
+  registry_set /system/health/failed-units int "${failed_units:-0}"
+  registry_set /system/health/network-interface string "${iface:-none}"
+  registry_set /system/health/network-ipv4 string "${addr:-none}"
+  registry_set /system/health/graphical-service string "$graphical_state"
+  registry_set /system/health/gdm-service string "$gdm_state"
+  registry_set /system/health/cpu-pressure-avg10 int "${pressure_cpu:-0}"
+
+  status="$overall"
+  {
+    echo "altitude-health: $ts overall=$overall messages=${messages# }"
+    status_line boot "$([ "$pid1_ok" = true ] && echo ok || echo fail)" "pid1=$pid1 root=$root_src type=$root_fs rw=$root_rw systemd=$systemd_state failed_units=$failed_units"
+    status_line wifi "$([ "$wifi_ok" = true ] && echo ok || echo warn)" "iface=${iface:-none} ipv4=${addr:-none}"
+    status_line ssh "$([ "$ssh_ok" = true ] && echo ok || echo warn)" "dropbear=$ssh_ok"
+    status_line gnome "$([ "$shell_ok" = true ] && echo ok || echo warn)" "shell_pid=${shell_pid:-0} graphical=$graphical_state gdm=$gdm_state"
+    status_line gpu "$([ "$gpu_accel" = true ] && echo ok || echo warn)" "render=$gpu_render accelerated=$gpu_accel"
+    status_line load ok "cpu_pressure_avg10=${pressure_cpu:-0}"
+  } | tee /tmp/altitude-health.$$
+
+  mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+  cat /tmp/altitude-health.$$ >>"$LOG" 2>/dev/null || true
+  cat /tmp/altitude-health.$$
+  rm -f /tmp/altitude-health.$$
+
+  [ "$status" != fail ]
+}
+
+cmd_refresh() {
+  collect >/dev/null
+}
+
+cmd_summary() {
+  collect
+}
+
+cmd_watch() {
+  local interval="${ALTITUDE_HEALTH_INTERVAL:-30}"
+  while true; do
+    collect >/dev/null || true
+    sleep "$interval"
+  done
+}
+
+command="${1:-summary}"
+case "$command" in
+  refresh) cmd_refresh ;;
+  summary) cmd_summary ;;
+  watch) cmd_watch ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 64 ;;
+esac
