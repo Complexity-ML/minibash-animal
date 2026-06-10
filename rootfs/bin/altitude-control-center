@@ -126,11 +126,12 @@ app.connect('activate', application => {
     }
 
     const actions = [
-        ['Overview', ['/bin/bash', '-lc',
-            'echo "== identity =="; hostname; cat /etc/os-release; echo; uname -a; ' +
-            'echo; echo "== health =="; /bin/altitude-health summary 2>&1; ' +
+        ['Status', ['/bin/bash', '-lc',
+            'echo "== identity =="; hostname; sed -n "1,8p" /etc/os-release 2>&1; echo; uname -r; ' +
+            'echo; echo "== health snapshot =="; /bin/bdbreg list /system/health 2>&1 | sed -n "1,20p"; ' +
             'echo; echo "== network =="; /bin/ip -4 -br a 2>&1; ' +
-            'echo; echo "== systemd =="; t 5 systemctl is-system-running 2>&1 || true; t 5 systemctl --failed --no-pager 2>&1'
+            'echo; echo "== systemd =="; t 3 systemctl is-system-running 2>&1 || true; ' +
+            'echo; echo "== pressure =="; sed -n "1p" /proc/pressure/cpu 2>/dev/null; sed -n "1p" /proc/pressure/io 2>/dev/null'
         ]],
         ['Health', ['/bin/bash', '-lc',
             '/bin/altitude-health summary 2>&1; ' +
@@ -214,7 +215,7 @@ app.connect('activate', application => {
 
     win.set_child(root);
     win.present();
-    show('Overview', actions[0][1]);
+    show('Status', actions[0][1]);
 });
 
 app.run(ARGV);
