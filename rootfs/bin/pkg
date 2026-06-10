@@ -58,6 +58,21 @@ package_record() {
       source="$source" checksum="$checksum" description="$description" >/dev/null
   fi
 }
+post_install_triggers() {
+  [ "$ROOT" = "/" ] || return 0
+  if [ -d /usr/share/glib-2.0/schemas ] &&
+     find /usr/share/glib-2.0/schemas -maxdepth 1 -name '*.gschema.xml' -print -quit |
+       grep -q .; then
+    if command -v glib-compile-schemas >/dev/null 2>&1; then
+      glib-compile-schemas /usr/share/glib-2.0/schemas >/dev/null 2>&1 || true
+    elif [ -x /usr/bin/glib-compile-schemas ]; then
+      /usr/bin/glib-compile-schemas /usr/share/glib-2.0/schemas >/dev/null 2>&1 || true
+    fi
+  fi
+  if [ -x /bin/appreg ] && [ -d /usr/share/applications ]; then
+    /bin/appreg refresh >/dev/null 2>&1 || true
+  fi
+}
 repo_value() {
   local key="$1"
   [ -f "$REPO_CONF" ] || die "repository configuration missing: $REPO_CONF"
@@ -228,6 +243,7 @@ install_file() {
   printf '%s\n' "$checksum" > "$state/package.sha256"
   printf '%s\n' "$source" > "$state/source"
   package_record "$name" "$version" installed "$source" "$checksum" "$description"
+  post_install_triggers
   echo "pkg: installed $name $version"
 }
 load_index() {
