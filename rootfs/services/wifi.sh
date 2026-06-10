@@ -13,6 +13,7 @@ set -x
 IF="${WIFI_IF:-}"
 CONF=/etc/wpa_supplicant.conf
 DHCP_SCRIPT=/usr/share/udhcpc/default.script
+[ -f /etc/minibash/wifi.creds ] && . /etc/minibash/wifi.creds
 
 log() { echo "wifi: $*"; }
 
@@ -113,6 +114,24 @@ if ! command -v wpa_supplicant >/dev/null 2>&1; then
   log "wpa_supplicant missing"; while true; do sleep 60; done
 fi
 mkdir -p /run/wpa_supplicant
+if [ -n "${WIFI_BSSID:-}" ]; then
+  log "pinning BSSID from private wifi.creds"
+  CONF=/run/wpa_supplicant-altitude.conf
+  awk -v bssid="$WIFI_BSSID" '
+    BEGIN { innet=0; added=0 }
+    /^[[:space:]]*network=\{/ { innet=1; added=0; print; next }
+    innet && /^[[:space:]]*ssid=/ {
+      print
+      print "    bssid=" bssid
+      added=1
+      next
+    }
+    innet && /^[[:space:]]*bssid=/ { if (!added) print; next }
+    innet && /^\}/ { innet=0; print; next }
+    { print }
+  ' /etc/wpa_supplicant.conf >"$CONF"
+  chmod 600 "$CONF"
+fi
 # Run wpa_supplicant in the foreground but backgrounded with '&' (NOT -B): that
 # way ALL of its output — driver init errors AND association events — is captured
 # in the log instead of being lost to syslog when it daemonises.
