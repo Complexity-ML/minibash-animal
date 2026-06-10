@@ -1,7 +1,7 @@
 [Unit]
 Description=Altitude GNOME graphical session
-After=altitude-dbus.service altitude-elogind.service altitude-polkit.service altitude-wifi.service
-Wants=altitude-dbus.service altitude-elogind.service altitude-polkit.service altitude-wifi.service
+After=altitude-dbus.service altitude-elogind.service altitude-polkit.service altitude-rtkit.service altitude-wifi.service
+Wants=altitude-dbus.service altitude-elogind.service altitude-polkit.service altitude-rtkit.service altitude-wifi.service
 
 [Service]
 Type=simple

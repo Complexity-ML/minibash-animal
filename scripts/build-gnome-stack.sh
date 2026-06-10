@@ -101,7 +101,7 @@ build_layer pkcs11 p11-kit
 build_layer tls-primitives gmp nettle libtasn1 libunistring gnutls
 build_layer certificate-ui gcr
 build_layer policy-primitives duktape libxcrypt
-build_layer policy polkit
+build_layer policy polkit rtkit
 build_layer audio alsa libsndfile pulseaudio
 build_layer input-method ibus
 build_layer shell gnome-shell

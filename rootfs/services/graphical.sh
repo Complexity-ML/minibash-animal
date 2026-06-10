@@ -79,7 +79,7 @@ start_if_missing org.freedesktop.login1 elogind /usr/libexec/elogind
 start_if_missing org.freedesktop.UPower upowerd /usr/libexec/upowerd --verbose
 start_if_missing org.freedesktop.Accounts accounts-daemon /usr/libexec/accounts-daemon
 start_if_missing org.freedesktop.PolicyKit1 polkitd /usr/lib/polkit-1/polkitd --no-debug
-start_if_missing org.freedesktop.RealtimeKit1 rtkit-daemon /usr/libexec/rtkit-daemon
+start_if_missing org.freedesktop.RealtimeKit1 rtkit-daemon /services/rtkit.sh
 
 cat > /run/altitude-gnome-session <<'EOF'
 #!/bin/sh

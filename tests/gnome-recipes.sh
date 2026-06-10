@@ -10,7 +10,7 @@ recipes=(
   libpng freetype fontconfig pixman cairo harfbuzz pango gtk4
   fribidi datrie libthai gdk-pixbuf graphene libepoxy libxkbcommon
   gsettings-desktop-schemas gnome-desktop mutter gnome-shell gnome-session
-  elogind polkit accountsservice upower udisks
+  elogind polkit rtkit accountsservice upower udisks
   gmp nettle libtasn1 libunistring gnutls vte gnome-console
 )
 
@@ -31,7 +31,7 @@ sources=(
   libpng freetype fontconfig pixman cairo harfbuzz pango gtk4
   fribidi datrie libthai gdk-pixbuf graphene libepoxy libxkbcommon
   gsettings-desktop-schemas gnome-desktop mutter gnome-shell gnome-session
-  elogind polkit accountsservice upower udisks
+  elogind polkit rtkit accountsservice upower udisks
   gmp nettle libtasn1 libunistring gnutls vte gnome-console
 )
 

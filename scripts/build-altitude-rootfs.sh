@@ -155,6 +155,7 @@ desktop_packages=(
   altitude-gnome-session
   altitude-elogind
   altitude-polkit
+  altitude-rtkit
   # upower and udisks are tracked as desktop service recipes, but still need
   # service integration before they are useful in Altitude's init model.
 )

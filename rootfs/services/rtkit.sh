@@ -10,7 +10,7 @@ fi
 for r in /usr/libexec/rtkit-daemon /usr/lib/rtkit/rtkit-daemon; do
   if [ -x "$r" ]; then
     echo "rtkit: starting $r"
-    exec "$r" --no-canary
+    exec "$r" --no-canary --no-drop-privileges --no-chroot
   fi
 done
 

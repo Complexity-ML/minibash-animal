@@ -1,0 +1,13 @@
+[Unit]
+Description=Altitude RealtimeKit daemon
+After=altitude-dbus.service altitude-polkit.service
+Wants=altitude-dbus.service altitude-polkit.service
+
+[Service]
+Type=simple
+ExecStart=/services/rtkit.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
