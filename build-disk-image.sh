@@ -73,8 +73,6 @@ trap 'rm -f "$grub_cfg" "$esp_img" "$data_img"' EXIT
 cat > "$grub_cfg" <<CFG
 set timeout=3
 set default=0
-set gfxmode=1920x1080,auto
-set gfxpayload=keep
 serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
 terminal_input console serial
 terminal_output console serial
@@ -82,7 +80,7 @@ search --no-floppy --label ALTITUDEEFI --set=root
 
 menuentry "Altitude Linux (systemd)" {
   search --no-floppy --label ALTITUDEEFI --set=root
-  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init altitude.init=systemd systemd.unit=graphical.target minibash.root=disk iwlmvm.power_scheme=1 console=tty0 panic=0 quiet loglevel=3 vt.global_cursor_default=0 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
+  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init altitude.init=systemd systemd.unit=graphical.target minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 console=tty0 panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
 }
 
 menuentry "Altitude Linux (systemd serial)" {
@@ -92,7 +90,7 @@ menuentry "Altitude Linux (systemd serial)" {
 
 menuentry "Altitude Linux (BusyBox fallback)" {
   search --no-floppy --label ALTITUDEEFI --set=root
-  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init altitude.init=busybox minibash.root=disk iwlmvm.power_scheme=1 console=tty0 panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
+  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init altitude.init=busybox minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 console=tty0 panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
 }
 CFG
 
