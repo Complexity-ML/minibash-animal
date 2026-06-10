@@ -91,6 +91,7 @@ LOG=/var/log/gnome-shell.log
 
 export TZ="${TZ:-UTC}"
 export XDG_RUNTIME_DIR="$RUNTIME_DIR"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP=GNOME
 export XDG_SESSION_DESKTOP=altitude
@@ -112,6 +113,7 @@ echo "CreateSession: $resp" >"$LOG"
 sid="$(printf "%s\n" "$resp" | awk '{print $2}' | tr -d '"')"
 export XDG_SESSION_ID="$sid"
 echo "XDG_SESSION_ID=$XDG_SESSION_ID PID=$$" >>"$LOG"
+echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR WAYLAND_DISPLAY=$WAYLAND_DISPLAY" >>"$LOG"
 
 dbus_info="$(dbus-daemon --session --fork --print-address=1 --print-pid=1)"
 export DBUS_SESSION_BUS_ADDRESS="$(printf "%s\n" "$dbus_info" | sed -n '1p')"

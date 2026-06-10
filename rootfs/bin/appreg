@@ -211,6 +211,23 @@ launch_exec() {
   command="${command//%i/}"
   command="${command//%c/}"
   command="${command//%k/}"
+  if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -d /run/user/0 ]; then
+    export XDG_RUNTIME_DIR=/run/user/0
+  fi
+  if [ -z "${WAYLAND_DISPLAY:-}" ] && [ -S "${XDG_RUNTIME_DIR:-/run/user/0}/wayland-0" ]; then
+    export WAYLAND_DISPLAY=wayland-0
+  fi
+  export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-GNOME}"
+  export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
+  if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    local pid env
+    pid="$(pgrep -x gnome-shell 2>/dev/null | head -n 1 || true)"
+    if [ -n "$pid" ] && [ -r "/proc/$pid/environ" ]; then
+      env="$(tr '\0' '\n' <"/proc/$pid/environ" |
+        sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' | head -n 1)"
+      [ -n "$env" ] && export DBUS_SESSION_BUS_ADDRESS="$env"
+    fi
+  fi
   exec /bin/sh -lc "$command"
 }
 
