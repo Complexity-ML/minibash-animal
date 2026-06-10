@@ -160,12 +160,16 @@ app.connect('activate', application => {
         ['GNOME', ['/bin/bash', '-lc',
             'echo "== GNOME =="; ' +
             'pgrep -a gnome-shell || true; ' +
-            'echo; t 8 systemctl status altitude-graphical.service altitude-rtkit.service --no-pager -l 2>&1 | sed -n "1,90p"; ' +
+            'echo; echo "== desktop registry =="; /bin/bdbreg list /system/desktop 2>&1 | sed -n "1,80p"; ' +
+            'echo; echo "== services =="; systemctl is-active altitude-graphical.service altitude-rtkit.service 2>&1 || true; ' +
             'echo; echo "== RealtimeKit =="; ' +
             'pgrep -a rtkit-daemon || true; ' +
-            'busctl --system --no-pager list 2>/dev/null | grep -F org.freedesktop.RealtimeKit1 || true; ' +
-            'echo; echo "== Apps =="; ' +
-            '/bin/appreg refresh 2>&1; echo; /bin/appreg status 2>&1; echo; /bin/appreg list 2>&1'
+            'echo; echo "== Apps snapshot =="; /bin/appreg status 2>&1'
+        ]],
+        ['Refresh Apps', ['/bin/bash', '-lc',
+            'echo "Refreshing application registry..."; ' +
+            't 12 /bin/appreg refresh 2>&1 || echo "app registry refresh timed out or failed"; ' +
+            'echo; /bin/appreg status 2>&1; echo; /bin/appreg list 2>&1'
         ]],
         ['GNOME Log', ['/bin/bash', '-lc', 'tail -180 /var/log/gnome-shell.log 2>&1']],
         ['GPU', ['/bin/bash', '-lc',
