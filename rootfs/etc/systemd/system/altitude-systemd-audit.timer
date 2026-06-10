@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Altitude systemd audit table
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=altitude-systemd-audit.service
+
+[Install]
+WantedBy=timers.target

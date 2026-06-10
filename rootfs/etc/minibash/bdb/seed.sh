@@ -127,7 +127,7 @@ if ! have_table registry; then
   now=$(date +%s 2>/dev/null || echo 0)
   $BDB insert registry path=/system/locale/keymap type=string value=fr \
     owner=system updated_at="$now" >/dev/null
-  $BDB insert registry path=/system/desktop/enabled type=bool value=false \
+  $BDB insert registry path=/system/desktop/enabled type=bool value=true \
     owner=system updated_at="$now" >/dev/null
   $BDB insert registry path=/system/network/failover type=string \
     value=carrier owner=netmgr updated_at="$now" >/dev/null

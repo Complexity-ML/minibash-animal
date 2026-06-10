@@ -1,0 +1,8 @@
+[Unit]
+Description=Mirror systemd unit state into Altitude registry audit table
+After=altitude-seed.service multi-user.target
+Wants=altitude-seed.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemd-audit refresh

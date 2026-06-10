@@ -14,7 +14,7 @@ systemd_audit BDB table. It does not start, stop, enable or disable units.
 EOF
 }
 
-have_table() { "$BDB" tables 2>/dev/null | grep -qx systemd_audit; }
+have_table() { "$BDB" tables 2>/dev/null | grep -qx "$1"; }
 
 ensure_bdb() {
   "$BDB" tables >/dev/null 2>&1 && return 0
@@ -27,9 +27,41 @@ ensure_bdb() {
 
 ensure_table() {
   ensure_bdb
-  have_table && return 0
-  "$BDB" create systemd_audit unit:text:pk load:text active:text sub:text \
-    description:text updated_at:int >/dev/null
+  have_table systemd_audit ||
+    "$BDB" create systemd_audit unit:text:pk load:text active:text sub:text \
+      description:text updated_at:int >/dev/null
+  have_table registry ||
+    "$BDB" create registry path:text:pk type:text value:text owner:text \
+      updated_at:int >/dev/null
+}
+
+registry_set() {
+  local path="$1" type="$2" value="$3" owner="${4:-systemd-audit}" now
+  now="$(date +%s 2>/dev/null || echo 0)"
+  if "$BDB" dump registry 2>/dev/null | cut -f1 | grep -qx "$path"; then
+    "$BDB" update registry --where "path=$path" type="$type" value="$value" \
+      owner="$owner" updated_at="$now" >/dev/null
+  else
+    "$BDB" insert registry path="$path" type="$type" value="$value" \
+      owner="$owner" updated_at="$now" >/dev/null
+  fi
+}
+
+audit_runtime() {
+  local present=false pid1=false provider=busybox-fallback
+  if command -v systemctl >/dev/null 2>&1 && [ -x /usr/lib/systemd/systemd ]; then
+    present=true
+  fi
+  if [ "$(cat /proc/1/comm 2>/dev/null || true)" = "systemd" ]; then
+    pid1=true
+    provider=systemd
+  fi
+  registry_set /system/systemd/runtime/present bool "$present"
+  registry_set /system/systemd/runtime/pid1 bool "$pid1"
+  registry_set /system/init/provider string "$provider"
+  registry_set /system/systemd/audit/enabled bool true
+  registry_set /system/systemd/audit/table string systemd_audit
+  registry_set /system/systemd/audit/control bool false
 }
 
 upsert_unit() {
@@ -45,6 +77,7 @@ upsert_unit() {
 
 cmd_refresh() {
   ensure_table
+  audit_runtime
   command -v systemctl >/dev/null 2>&1 || {
     echo "systemd-audit: systemctl missing; no systemd state collected"
     return 0

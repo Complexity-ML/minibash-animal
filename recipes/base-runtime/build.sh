@@ -86,6 +86,18 @@ log "PID1 start $(date 2>/dev/null || true)"
 log "cmdline: $(cat /proc/cmdline 2>/dev/null)"
 log "root: ${root_line:-unknown}"
 
+case " $(cat /proc/cmdline 2>/dev/null) " in
+  *" altitude.init=systemd "*)
+    if [ -x /usr/lib/systemd/systemd ]; then
+      log "exec systemd PID1"
+      exec /usr/lib/systemd/systemd
+      log "systemd exec failed rc=$?"
+    else
+      log "systemd requested but /usr/lib/systemd/systemd is missing; using BusyBox fallback"
+    fi
+    ;;
+esac
+
 if [ -x /etc/rc.altitude ]; then
   log "running /etc/rc.altitude"
   /bin/bash /etc/rc.altitude >>/var/log/rc.altitude.log 2>&1 || log "rc.altitude exited rc=$?"
@@ -131,7 +143,7 @@ for path in \
   bin/altitude bin/bdb bin/bdbql bin/bdbsh bin/bdbctl bin/bdbreg bin/bdbconf \
   bin/appreg bin/systemd-audit bin/login bin/passwd bin/pkg bin/altpkg-build bin/altrepo \
   bin/altitude-software \
-  etc/altitude etc/minibash etc/os-release etc/lsb-release etc/hostname \
+  etc/altitude etc/minibash etc/systemd etc/os-release etc/lsb-release etc/hostname \
   etc/issue etc/passwd etc/group etc/shells services; do
   [ -e "$ROOT/rootfs/$path" ] || continue
   mkdir -p "$PAYLOAD/$(dirname "$path")"
