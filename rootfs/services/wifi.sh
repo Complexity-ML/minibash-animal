@@ -76,7 +76,7 @@ ins kernel/net/wireless/cfg80211.ko
 ins kernel/lib/crypto/libarc4.ko
 ins kernel/net/mac80211/mac80211.ko
 ins kernel/drivers/net/wireless/intel/iwlwifi/iwlwifi.ko \
-  11n_disable=1 bt_coex_active=0 power_save=0
+  11n_disable=1 power_save=0
 ins kernel/drivers/net/wireless/intel/iwlwifi/mvm/iwlmvm.ko \
   power_scheme=1
 modprobe iwlmvm 2>&1 || true
@@ -122,7 +122,7 @@ mkdir -p /run/wpa_supplicant
 if [ -n "${WIFI_BSSID:-}" ]; then
   log "pinning BSSID from private wifi.creds"
   CONF=/run/wpa_supplicant-altitude.conf
-  awk -v bssid="$WIFI_BSSID" '
+  awk -v bssid="$WIFI_BSSID" -v psk_hex="${WIFI_PSK_HEX:-}" '
     BEGIN { innet=0; added=0 }
     /^[[:space:]]*network=\{/ { innet=1; added=0; print; next }
     innet && /^[[:space:]]*ssid=/ {
@@ -132,10 +132,13 @@ if [ -n "${WIFI_BSSID:-}" ]; then
       print "    pairwise=CCMP"
       print "    group=CCMP"
       print "    ieee80211w=0"
+      if (psk_hex != "") {
+        print "    psk=" psk_hex
+      }
       added=1
       next
     }
-    innet && /^[[:space:]]*(proto|pairwise|group|ieee80211w)=/ { if (!added) print; next }
+    innet && /^[[:space:]]*(proto|pairwise|group|ieee80211w|psk)=/ { if (!added) print; next }
     innet && /^[[:space:]]*bssid=/ { if (!added) print; next }
     innet && /^\}/ { innet=0; print; next }
     { print }
