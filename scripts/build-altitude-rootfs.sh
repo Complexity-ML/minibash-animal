@@ -86,6 +86,11 @@ desktop_packages=(
   altitude-libdrm
   altitude-mesa
   altitude-lz4
+  altitude-gmp
+  altitude-nettle
+  altitude-libtasn1
+  altitude-libunistring
+  altitude-gnutls
   altitude-fast-float
   altitude-icu
   altitude-gcc-cxx

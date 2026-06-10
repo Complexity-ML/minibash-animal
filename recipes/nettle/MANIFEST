@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-nettle
+Version: 3.10.2
+Architecture: amd64
+Description: Nettle and Hogweed crypto libraries for Altitude GnuTLS

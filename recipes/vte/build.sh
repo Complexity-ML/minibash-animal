@@ -33,7 +33,7 @@ for tool in meson ninja python3 g-ir-scanner g-ir-compiler; do
   command -v "$tool" >/dev/null ||
     { echo "vte: missing forge tool: $tool" >&2; exit 1; }
 done
-for dep in cairo cairo-gobject gio-2.0 glib-2.0 gobject-2.0 pango libpcre2-8 liblz4 gtk4 icu-uc fribidi; do
+for dep in cairo cairo-gobject gio-2.0 glib-2.0 gobject-2.0 pango libpcre2-8 liblz4 gtk4 icu-uc fribidi gnutls; do
   "$PKG_CONFIG" --exists "$dep" ||
     { echo "vte: target dependency missing from $SYSROOT: $dep" >&2; exit 1; }
 done
@@ -95,7 +95,7 @@ EOF
 meson setup "$WORK/build" "$WORK/source" \
   --cross-file="$WORK/cross.ini" --prefix=/usr --libdir=lib \
   --buildtype=release --wrap-mode=nofallback \
-  -Dgtk3=false -Dgtk4=true -Dgnutls=false -D_systemd=false \
+  -Dgtk3=false -Dgtk4=true -Dgnutls=true -D_systemd=false \
   -Dvapi=false -Ddocs=false -Dgir=true -Dglade=false
 DESTDIR="$PAYLOAD" meson install -C "$WORK/build"
 
@@ -111,7 +111,7 @@ cp -a "$PAYLOAD/usr/." "$SYSROOT/usr/"
   echo "Source: vte"
   echo "Version: $VERSION"
   echo "SHA256: $(sha256sum "$TARBALL" | awk '{print $1}')"
-  echo "Build: GTK4 terminal widget cross $TARGET"
+  echo "Build: GTK4 terminal widget cross $TARGET with GnuTLS scrollback encryption"
   echo "Compiler: $("$CXX" --version | head -1)"
 } > "$PAYLOAD/usr/share/altitude/sources/vte.build"
 

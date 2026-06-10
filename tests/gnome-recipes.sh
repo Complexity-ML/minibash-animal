@@ -11,6 +11,7 @@ recipes=(
   fribidi datrie libthai gdk-pixbuf graphene libepoxy libxkbcommon
   gsettings-desktop-schemas gnome-desktop mutter gnome-shell gnome-session
   elogind polkit accountsservice upower udisks
+  gmp nettle libtasn1 libunistring gnutls vte gnome-console
 )
 
 for recipe in "${recipes[@]}"; do
@@ -31,6 +32,7 @@ sources=(
   fribidi datrie libthai gdk-pixbuf graphene libepoxy libxkbcommon
   gsettings-desktop-schemas gnome-desktop mutter gnome-shell gnome-session
   elogind polkit accountsservice upower udisks
+  gmp nettle libtasn1 libunistring gnutls vte gnome-console
 )
 
 for source in "${sources[@]}"; do
@@ -55,5 +57,7 @@ awk '
     }
   }
 ' "$ROOT/sources/SOURCES.lock"
+
+grep -q -- '-Dgnutls=true' "$ROOT/recipes/vte/build.sh"
 
 echo "GNOME source recipes: ok"

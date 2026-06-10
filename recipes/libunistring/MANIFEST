@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-libunistring
+Version: 1.4.1
+Architecture: amd64
+Description: Unicode string library for Altitude GnuTLS

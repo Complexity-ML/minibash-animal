@@ -50,7 +50,7 @@ grep -q -- '--enable-static-link' "$ROOT/recipes/bash/build.sh"
 grep -q 'LDFLAGS="-static"' "$ROOT/recipes/bash/build.sh"
 grep -q 'Debian-runtime-files: 0' "$ROOT/recipes/base-runtime/build.sh"
 grep -q ' -static ' "$ROOT/recipes/base-runtime/build.sh"
-grep -q 'ln -s sbin/init "\$PAYLOAD/init"' \
+grep -q 'cat > "\$PAYLOAD/init"' \
   "$ROOT/recipes/base-runtime/build.sh"
 grep -q 'generic-x86_64.config' "$ROOT/recipes/linux/build.sh"
 grep -q 'CONFIG_IWLWIFI=m' "$ROOT/recipes/linux/config/generic-x86_64.config"

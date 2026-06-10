@@ -98,6 +98,7 @@ build_layer location geoclue geocode-glib
 build_layer weather libgweather
 build_layer crypto-primitives libgpg-error libgcrypt
 build_layer pkcs11 p11-kit
+build_layer tls-primitives gmp nettle libtasn1 libunistring gnutls
 build_layer certificate-ui gcr
 build_layer policy-primitives duktape libxcrypt
 build_layer policy polkit
@@ -106,5 +107,7 @@ build_layer input-method ibus
 build_layer shell gnome-shell
 build_layer session gnome-session
 build_layer desktop-services accountsservice upower udisks
+build_layer terminal-primitives appstream libadwaita libgtop vte
+build_layer terminal-apps gnome-console
 
 printf '[gnome-stack] foundational GNOME stack complete\n'

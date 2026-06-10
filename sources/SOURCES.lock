@@ -13,6 +13,26 @@ Version: 6.3.0
 URL: https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz
 SHA256: a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898
 
+Source: nettle
+Version: 3.10.2
+URL: https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz
+SHA256: fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5
+
+Source: libtasn1
+Version: 4.21.0
+URL: https://ftp.gnu.org/gnu/libtasn1/libtasn1-4.21.0.tar.gz
+SHA256: 1d8a444a223cc5464240777346e125de51d8e6abf0b8bac742ac84609167dc87
+
+Source: libunistring
+Version: 1.4.1
+URL: https://ftp.gnu.org/gnu/libunistring/libunistring-1.4.1.tar.xz
+SHA256: 67d88430892527861903788868c77802a217b0959990f7449f2976126a307763
+
+Source: gnutls
+Version: 3.8.13
+URL: https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-3.8.13.tar.xz
+SHA256: ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e
+
 Source: mpfr
 Version: 4.2.2
 URL: https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.2.tar.xz

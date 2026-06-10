@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-gmp
+Version: 6.3.0
+Architecture: amd64
+Description: GNU multiple precision arithmetic library for Altitude crypto
