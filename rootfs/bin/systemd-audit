@@ -4,6 +4,7 @@ set -euo pipefail
 
 export BDB_PATH="${BDB_PATH:-/var/bdb}"
 BDB="${BDB_BIN:-/bin/bdb}"
+AUDIT_LOCK="${ALTITUDE_AUDIT_LOCK:-/run/altitude-audit.lock}"
 
 usage() {
   cat <<'EOF'
@@ -49,6 +50,29 @@ registry_set() {
   fi
 }
 
+with_audit_lock() {
+  if [ "${ALTITUDE_AUDIT_LOCK_HELD:-0}" = 1 ]; then
+    "$@"
+    return
+  fi
+
+  local i
+  for i in $(seq 1 30); do
+    if mkdir "$AUDIT_LOCK" 2>/dev/null; then
+      trap 'rmdir "$AUDIT_LOCK" 2>/dev/null || true' EXIT INT TERM
+      "$@"
+      local status=$?
+      rmdir "$AUDIT_LOCK" 2>/dev/null || true
+      trap - EXIT INT TERM
+      return "$status"
+    fi
+    sleep 1
+  done
+
+  echo "systemd-audit: audit lock busy: $AUDIT_LOCK" >&2
+  return 75
+}
+
 audit_runtime() {
   local present=false pid1=false provider=busybox-fallback
   if command -v systemctl >/dev/null 2>&1 && [ -x /usr/lib/systemd/systemd ]; then
@@ -81,7 +105,7 @@ cmd_refresh() {
   ensure_table
   audit_runtime
   if [ -x /bin/registry-audit ]; then
-    /bin/registry-audit refresh >/dev/null 2>&1 || true
+    ALTITUDE_AUDIT_LOCK_HELD=1 /bin/registry-audit refresh >/dev/null 2>&1 || true
   fi
   command -v systemctl >/dev/null 2>&1 || {
     echo "systemd-audit: systemctl missing; no systemd state collected"
@@ -110,7 +134,7 @@ cmd_list() {
 
 command="${1:-refresh}"
 case "$command" in
-  refresh) cmd_refresh ;;
+  refresh) with_audit_lock cmd_refresh ;;
   list) cmd_list ;;
   help|-h|--help) usage ;;
   *) usage >&2; exit 64 ;;

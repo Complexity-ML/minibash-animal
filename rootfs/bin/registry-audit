@@ -8,6 +8,7 @@ set -euo pipefail
 
 export BDB_PATH="${BDB_PATH:-/var/bdb}"
 BDB="${BDB_BIN:-/bin/bdb}"
+AUDIT_LOCK="${ALTITUDE_AUDIT_LOCK:-/run/altitude-audit.lock}"
 
 usage() {
   cat <<'EOF'
@@ -59,6 +60,29 @@ registry_set() {
 
 bool() {
   if "$@"; then echo true; else echo false; fi
+}
+
+with_audit_lock() {
+  if [ "${ALTITUDE_AUDIT_LOCK_HELD:-0}" = 1 ]; then
+    "$@"
+    return
+  fi
+
+  local i
+  for i in $(seq 1 30); do
+    if mkdir "$AUDIT_LOCK" 2>/dev/null; then
+      trap 'rmdir "$AUDIT_LOCK" 2>/dev/null || true' EXIT INT TERM
+      "$@"
+      local status=$?
+      rmdir "$AUDIT_LOCK" 2>/dev/null || true
+      trap - EXIT INT TERM
+      return "$status"
+    fi
+    sleep 1
+  done
+
+  echo "registry-audit: audit lock busy: $AUDIT_LOCK" >&2
+  return 75
 }
 
 first_global_ipv4() {
@@ -157,7 +181,7 @@ cmd_summary() {
 
 command="${1:-refresh}"
 case "$command" in
-  refresh) cmd_refresh ;;
+  refresh) with_audit_lock cmd_refresh ;;
   list) cmd_list ;;
   summary) cmd_summary ;;
   help|-h|--help) usage ;;
