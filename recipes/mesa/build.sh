@@ -44,6 +44,7 @@ cat > "$WORK/altitude-cross.ini" <<EOF
 c = '$TOOLCHAIN/bin/$TARGET-gcc'
 cpp = '$TOOLCHAIN/bin/$TARGET-g++'
 ar = '$TOOLCHAIN/bin/$TARGET-ar'
+nm = '$TOOLCHAIN/bin/$TARGET-nm'
 strip = '$TOOLCHAIN/bin/$TARGET-strip'
 pkg-config = '$FORGE/bin/pkg-config'
 
@@ -57,25 +58,45 @@ endian = 'little'
 sys_root = '$SYSROOT'
 EOF
 
-# LLVM, X11 and Vulkan are deliberately outside this first bounded graphics
-# layer. softpipe provides Mesa's non-LLVM software fallback; virgl covers virtio-gpu.
+BUILD_CC="$(command -v cc || command -v gcc || command -v "$TARGET-gcc")"
+BUILD_CXX="$(command -v c++ || command -v g++ || command -v "$TARGET-g++")"
+BUILD_AR="$(command -v ar || command -v "$TARGET-ar")"
+BUILD_NM="$(command -v nm || command -v "$TARGET-nm")"
+
+cat > "$WORK/altitude-native.ini" <<EOF
+[binaries]
+c = '$BUILD_CC'
+cpp = '$BUILD_CXX'
+ar = '$BUILD_AR'
+nm = '$BUILD_NM'
+EOF
+
+# LLVM, X11 and Vulkan are deliberately outside this bounded graphics layer.
+# softpipe provides Mesa's non-LLVM fallback, virgl covers virtio-gpu, and
+# nouveau is required on the HP Omen TU116 path so GNOME does not fall back to
+# software rendering on the kernel nouveau KMS device.
 meson setup "$WORK/build" "$WORK/source" \
   --cross-file="$WORK/altitude-cross.ini" \
+  --native-file="$WORK/altitude-native.ini" \
   --prefix=/usr --libdir=lib --buildtype=release \
-  -Dplatforms=wayland -Dgallium-drivers=softpipe,virgl \
+  -Dplatforms=wayland -Dgallium-drivers=softpipe,virgl,nouveau \
   -Dvulkan-drivers= -Dllvm=disabled -Dshared-llvm=disabled \
   -Dglx=disabled -Degl=enabled -Dgbm=enabled \
   -Dgles1=enabled -Dgles2=enabled -Dopengl=true \
   -Dvalgrind=disabled -Dlibunwind=disabled -Dlmsensors=disabled \
   -Dzstd=disabled -Dbuild-tests=false -Dvideo-codecs=
 DESTDIR="$WORK/payload" ninja -C "$WORK/build" install
+mkdir -p "$WORK/payload/usr/lib/dri"
+for driver in nouveau swrast kms_swrast virtio_gpu; do
+  ln -sf ../libgallium-$VERSION.so "$WORK/payload/usr/lib/dri/${driver}_dri.so"
+done
 cp -a "$WORK/payload/usr/." "$SYSROOT/usr/"
 
 {
   echo "Source: mesa"
   echo "Version: $VERSION"
   echo "SHA256: $(sha256sum "$TARBALL" | awk '{print $1}')"
-  echo "Build: Wayland EGL/GLES/GBM; Gallium softpipe,virgl; no LLVM/X11/Vulkan"
+  echo "Build: Wayland EGL/GLES/GBM; Gallium softpipe,virgl,nouveau; no LLVM/X11/Vulkan"
   echo "Target: $TARGET"
   echo "Compiler: $("$TARGET-gcc" --version | head -1)"
 } > "$WORK/payload/usr/share/altitude/sources/mesa.build"
