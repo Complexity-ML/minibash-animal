@@ -44,8 +44,9 @@ stanza() {
       name=""
       for (i=1; i<=NF; i++)
         if ($i ~ /^Package: /) name=substr($i,10)
-      if (name == wanted) print $0
+      if (name == wanted) found=$0
     }
+    END { if (found != "") print found }
   ' "$1"
 }
 validate_archive() {

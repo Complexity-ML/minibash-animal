@@ -59,7 +59,11 @@ if [ "$INCLUDE_SOURCE_PACKAGES" = 1 ] && compgen -G "$EXTRA_OUT/*.altpkg" >/dev/
   done
 fi
 if command -v xattr >/dev/null 2>&1; then
-  xattr -cr "$OUT" "$SOURCE_OUT" "$EXTRA_OUT" "$REPO"
+  xattr_targets=()
+  for path in "$OUT" "$SOURCE_OUT" "$EXTRA_OUT" "$REPO"; do
+    [ -e "$path" ] && xattr_targets+=("$path")
+  done
+  [ "${#xattr_targets[@]}" -eq 0 ] || xattr -cr "${xattr_targets[@]}"
 fi
 ALTITUDE_REPO_ROOT="$REPO" bash "$ROOT/rootfs/bin/altrepo" verify
 echo "Altitude repository: $REPO"

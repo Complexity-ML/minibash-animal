@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# Refresh observed OS facts into the Altitude registry.
+#
+# This is intentionally read-only with respect to Linux services. It records
+# what the running system looks like so admin tools can present one coherent
+# view without turning the BDB into PID 1.
+set -euo pipefail
+
+export BDB_PATH="${BDB_PATH:-/var/bdb}"
+BDB="${BDB_BIN:-/bin/bdb}"
+
+usage() {
+  cat <<'EOF'
+usage: registry-audit [refresh|summary|list]
+
+Refreshes observed system facts into the typed BDB registry:
+  /system/product
+  /system/kernel
+  /system/boot
+  /system/rootfs
+  /system/network
+  /system/desktop
+  /system/runtime
+
+It does not start, stop, enable or disable services.
+EOF
+}
+
+have_table() { "$BDB" tables 2>/dev/null | grep -qx "$1"; }
+
+ensure_bdb() {
+  "$BDB" tables >/dev/null 2>&1 && return 0
+  mkdir -p "$BDB_PATH"
+  if [ -d /etc/minibash/bdb ] && [ ! -f "$BDB_PATH/tables/registry/data.bdb" ]; then
+    (cd /etc/minibash/bdb && tar -cf - .) | (cd "$BDB_PATH" && tar -xf -)
+  fi
+  "$BDB" init >/dev/null 2>&1 || true
+}
+
+ensure_table() {
+  ensure_bdb
+  have_table registry ||
+    "$BDB" create registry path:text:pk type:text value:text owner:text \
+      updated_at:int >/dev/null
+}
+
+registry_set() {
+  local path="$1" type="$2" value="$3" owner="${4:-registry-audit}" now
+  now="$(date +%s 2>/dev/null || echo 0)"
+  if "$BDB" dump registry 2>/dev/null | cut -f1 | grep -qx "$path"; then
+    "$BDB" update registry --where "path=$path" type="$type" value="$value" \
+      owner="$owner" updated_at="$now" >/dev/null
+  else
+    "$BDB" insert registry path="$path" type="$type" value="$value" \
+      owner="$owner" updated_at="$now" >/dev/null
+  fi
+}
+
+bool() {
+  if "$@"; then echo true; else echo false; fi
+}
+
+first_global_ipv4() {
+  ip -4 addr show scope global 2>/dev/null |
+    awk '
+      /^[0-9]+:/ { iface=$2; sub(/:$/, "", iface) }
+      / inet / { print iface " " $2; exit }
+    '
+}
+
+default_route() {
+  ip route show default 2>/dev/null | awk 'NR == 1 { print $0 }'
+}
+
+cmd_refresh() {
+  ensure_table
+  local host uptime root_src root_fs cmdline kernel product_name product_version
+  host="$(cat /proc/sys/kernel/hostname 2>/dev/null || hostname 2>/dev/null || echo altitude)"
+  uptime="$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)"
+  root_src="$(awk '$2 == "/" { print $1; exit }' /proc/mounts 2>/dev/null || echo unknown)"
+  root_fs="$(awk '$2 == "/" { print $3; exit }' /proc/mounts 2>/dev/null || echo unknown)"
+  cmdline="$(cat /proc/cmdline 2>/dev/null || echo unknown)"
+  kernel="$(uname -r 2>/dev/null || echo unknown)"
+  product_name="Altitude Linux"
+  product_version="$(cat /etc/minibash/VERSION 2>/dev/null || echo 0.1.0)"
+
+  if [ -r /etc/os-release ]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    product_name="${PRETTY_NAME:-${NAME:-$product_name}}"
+    product_version="${BUILD_ID:-${VERSION_ID:-$product_version}}"
+  fi
+
+  registry_set /system/product/name string "$product_name" system
+  registry_set /system/product/version string "$product_version" system
+  registry_set /system/runtime/hostname string "$host"
+  registry_set /system/runtime/uptime int "$uptime"
+  registry_set /system/kernel/release string "$kernel"
+  registry_set /system/kernel/cmdline string "$cmdline"
+  registry_set /system/boot/root string "$root_src"
+  registry_set /system/rootfs/source string "$root_src"
+  registry_set /system/rootfs/type string "$root_fs"
+
+  if [ -r /etc/altitude/release.conf ]; then
+    while IFS='=' read -r key value; do
+      [ -n "${key:-}" ] || continue
+      case "$key" in \#*) continue ;; esac
+      key="$(printf '%s' "$key" | tr 'A-Z_' 'a-z-')"
+      registry_set "/system/release/$key" string "$value"
+    done < /etc/altitude/release.conf
+  fi
+
+  local network iface addr route
+  network="$(first_global_ipv4 || true)"
+  iface="${network%% *}"
+  addr="${network#* }"
+  [ "$iface" != "$addr" ] || { iface=none; addr=none; }
+  route="$(default_route || true)"
+  registry_set /system/network/primary-interface string "${iface:-none}"
+  registry_set /system/network/primary-ipv4 string "${addr:-none}"
+  registry_set /system/network/default-route string "${route:-none}"
+  registry_set /system/network/online bool "$(bool [ "${addr:-none}" != none ])"
+
+  local gnome_pid shell_running
+  gnome_pid="$(pgrep -x gnome-shell 2>/dev/null | head -n 1 || true)"
+  shell_running="$(bool [ -n "$gnome_pid" ])"
+  registry_set /system/desktop/session string "$([ "$shell_running" = true ] && echo gnome || echo none)"
+  registry_set /system/desktop/gnome-shell/running bool "$shell_running"
+  registry_set /system/desktop/gnome-shell/pid int "${gnome_pid:-0}"
+
+  registry_set /system/registry/audit/enabled bool true
+  registry_set /system/registry/audit/owner string registry-audit
+  registry_set /system/registry/audit/updated-at int "$(date +%s 2>/dev/null || echo 0)"
+  echo "registry-audit: refreshed system facts"
+}
+
+cmd_list() {
+  ensure_table
+  /bin/bdbreg list /system
+}
+
+cmd_summary() {
+  ensure_table
+  for path in \
+    /system/product/name \
+    /system/product/version \
+    /system/init/provider \
+    /system/kernel/release \
+    /system/rootfs/source \
+    /system/network/primary-ipv4 \
+    /system/desktop/session \
+    /system/systemd/runtime/pid1; do
+    /bin/bdbreg get "$path" 2>/dev/null | tail -n +2 || true
+  done
+}
+
+command="${1:-refresh}"
+case "$command" in
+  refresh) cmd_refresh ;;
+  list) cmd_list ;;
+  summary) cmd_summary ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 64 ;;
+esac

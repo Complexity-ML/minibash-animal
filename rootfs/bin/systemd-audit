@@ -78,6 +78,9 @@ upsert_unit() {
 cmd_refresh() {
   ensure_table
   audit_runtime
+  if [ -x /bin/registry-audit ]; then
+    /bin/registry-audit refresh >/dev/null 2>&1 || true
+  fi
   command -v systemctl >/dev/null 2>&1 || {
     echo "systemd-audit: systemctl missing; no systemd state collected"
     return 0

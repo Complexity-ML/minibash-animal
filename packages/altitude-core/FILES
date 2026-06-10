@@ -6,6 +6,7 @@ bin/bdbreg
 bin/bdbconf
 bin/appreg
 bin/systemd-audit
+bin/registry-audit
 bin/altitude-software
 bin/altitude-control-center
 bin/altitude-command-runner

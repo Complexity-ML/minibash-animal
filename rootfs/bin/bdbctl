@@ -29,6 +29,7 @@ usage: bdbctl [command] [args]
   kernel                  modules and sysctl state
   users                   local BDB accounts (passwords never displayed)
   registry [PREFIX]       typed hierarchical system registry
+  audit                   refresh and show observed registry facts
   dependencies            service requires/after/before relationships
   dependency add SERVICE RELATION TARGET
   dependency remove SERVICE RELATION TARGET
@@ -250,6 +251,12 @@ cmd_registry() {
   /bin/bdbreg list "${1:-/}"
 }
 
+cmd_audit() {
+  /bin/registry-audit refresh 2>/dev/null || true
+  heading "Observed system registry"
+  /bin/bdbreg list /system
+}
+
 cmd_dependencies() {
   have_table service_dependencies || {
     echo "service_dependencies: absent"
@@ -350,7 +357,7 @@ cmd_check() {
 shell_help() {
   cat <<'EOF'
 summary | health | services | control | network | storage | kernel | users
-registry [prefix] | dependencies | updates
+registry [prefix] | audit | dependencies | updates
 dependency add|remove SERVICE RELATION TARGET
 config export|check|diff|apply [file]
 events [domain] | logs [service] | check [table]
@@ -364,7 +371,7 @@ cmd_shell() {
   while true; do
     printf '\033[2J\033[H'
     cmd_summary
-    printf '\n%sCommands:%s health services network storage kernel users registry dependencies\n' "$cyan" "$reset"
+    printf '\n%sCommands:%s health services network storage kernel users registry audit dependencies\n' "$cyan" "$reset"
     printf '          updates events logs\n'
     printf '          start/stop/restart SERVICE | check | db ... | help | quit\n'
     printf '%sbdbctl>%s ' "$bold" "$reset"
@@ -381,6 +388,7 @@ cmd_shell() {
       kernel) cmd_kernel; read -r -p "enter> " _ ;;
       users) cmd_users; read -r -p "enter> " _ ;;
       registry) cmd_registry "$rest"; read -r -p "enter> " _ ;;
+      audit) cmd_audit; read -r -p "enter> " _ ;;
       dependencies) cmd_dependencies; read -r -p "enter> " _ ;;
       dependency)
         # shellcheck disable=SC2086
@@ -427,6 +435,7 @@ main() {
     kernel) cmd_kernel ;;
     users) cmd_users ;;
     registry) cmd_registry "$@" ;;
+    audit) cmd_audit ;;
     dependencies) cmd_dependencies ;;
     dependency) cmd_dependency "$@" ;;
     config) cmd_config "$@" ;;

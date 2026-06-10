@@ -24,6 +24,14 @@ verify_file() {
     -in "$digest" -sigfile "$file.sig" >/dev/null
   rm -f "$digest"
 }
+package_name() {
+  local package="$1" tmp manifest
+  tmp="$(mktemp -d)"
+  tar -xf "$package" -C "$tmp" ALTITUDE/MANIFEST
+  manifest="$tmp/ALTITUDE/MANIFEST"
+  field Name "$manifest"
+  rm -rf "$tmp"
+}
 reindex() {
   local package tmp manifest name version arch description checksum filename
   tmp="$(mktemp -d)"
@@ -74,6 +82,14 @@ case "${1:-}" in
     package="${2:?missing .altpkg file}"
     [ -f "$package" ] || die "package missing: $package"
     mkdir -p "$REPO/packages"
+    new_name="$(package_name "$package")"
+    [ -n "$new_name" ] || die "package name missing: $package"
+    for existing in "$REPO"/packages/*.altpkg; do
+      [ -f "$existing" ] || continue
+      if [ "$(package_name "$existing")" = "$new_name" ]; then
+        rm -f "$existing" "$existing.sig"
+      fi
+    done
     destination="$REPO/packages/$(basename "$package")"
     cp "$package" "$destination"
     sign "$destination"

@@ -79,6 +79,7 @@ app.connect('activate', application => {
         ['Services', ['/bin/bash', '-lc', '/bin/bdb select services 2>&1 || /bin/bdb dump services 2>&1']],
         ['Modules', ['/bin/bash', '-lc', '/bin/bdb select modules 2>&1 || /bin/bdb dump modules 2>&1']],
         ['Registry', ['/bin/bash', '-lc', '/bin/bdb select registry 2>&1 || /bin/bdb dump registry 2>&1']],
+        ['Audit', ['/bin/bash', '-lc', '/bin/registry-audit refresh 2>&1; echo; /bin/bdbreg list /system 2>&1']],
         ['Packages', ['/bin/bash', '-lc', '/bin/pkg list 2>&1 || find /usr/share/altitude/sources -type f -maxdepth 1 2>/dev/null | sort']],
         ['Software', ['/bin/bash', '-lc', '/bin/pkg refresh 2>&1; echo; /bin/pkg search 2>&1 | sed -n "1,80p"']],
         ['Apps', ['/bin/bash', '-lc', '/bin/appreg refresh 2>&1; echo; /bin/appreg list 2>&1']],

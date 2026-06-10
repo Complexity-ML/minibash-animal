@@ -159,3 +159,5 @@ ensure_registry /system/systemd/runtime/present bool true system
 ensure_registry /system/systemd/runtime/pid1 bool true system
 ensure_registry /system/init/provider string systemd system
 ensure_registry /system/init/systemd/required bool true system
+ensure_registry /system/registry/audit/enabled bool true system
+ensure_registry /system/registry/audit/owner string registry-audit system
