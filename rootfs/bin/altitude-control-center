@@ -75,7 +75,22 @@ app.connect('activate', application => {
     }
 
     const actions = [
-        ['Overview', ['/bin/bash', '-lc', 'hostname; echo; cat /etc/os-release; echo; uname -a; echo; ip -4 a']],
+        ['Overview', ['/bin/bash', '-lc', 'hostname; echo; cat /etc/os-release; echo; uname -a; echo; /bin/ip -4 -br a']],
+        ['Desktop', ['/bin/bash', '-lc',
+            'echo "== GNOME =="; ' +
+            'pgrep -a gnome-shell || true; ' +
+            'echo; systemctl status altitude-graphical.service altitude-rtkit.service --no-pager -l 2>&1 | sed -n "1,90p"; ' +
+            'echo; echo "== RealtimeKit =="; ' +
+            'pgrep -a rtkit-daemon || true; ' +
+            'busctl --system --no-pager list 2>/dev/null | grep -F org.freedesktop.RealtimeKit1 || true; ' +
+            'echo; echo "== Apps =="; ' +
+            '/bin/appreg refresh 2>&1; echo; /bin/appreg status 2>&1; echo; /bin/appreg list 2>&1'
+        ]],
+        ['Failures', ['/bin/bash', '-lc',
+            'echo "== systemd failed =="; systemctl --failed --no-pager 2>&1; ' +
+            'echo; echo "== recent graphical log =="; tail -80 /var/log/graphical.log 2>&1; ' +
+            'echo; echo "== recent GNOME shell log =="; tail -120 /var/log/gnome-shell.log 2>&1'
+        ]],
         ['Services', ['/bin/bash', '-lc', '/bin/bdb select services 2>&1 || /bin/bdb dump services 2>&1']],
         ['Modules', ['/bin/bash', '-lc', '/bin/bdb select modules 2>&1 || /bin/bdb dump modules 2>&1']],
         ['Registry', ['/bin/bash', '-lc', '/bin/bdb select registry 2>&1 || /bin/bdb dump registry 2>&1']],
