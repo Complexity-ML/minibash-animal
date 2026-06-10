@@ -8,6 +8,8 @@ set -u
 BIN="${MOVECTL_UINPUT:-/bin/movectl-uinput}"
 REG="${BDBREG_BIN:-/bin/bdbreg}"
 OWNER=movectl
+FIFO="${MOVECTL_FIFO:-/run/movectl.fifo}"
+LOG="${MOVECTL_LOG:-/var/log/movectl.log}"
 
 usage() {
   cat <<'EOF'
@@ -16,6 +18,8 @@ usage:
   movectl click [left]
   movectl nudge
   movectl home
+  movectl daemon
+  movectl stop-daemon
   movectl goto TARGET
   movectl click-target TARGET
   movectl status
@@ -80,26 +84,52 @@ run_uinput() {
   "$BIN" "$@"
 }
 
+ensure_daemon() {
+  [ -p "$FIFO" ] && return 0
+  mkdir -p /run "$(dirname "$LOG")" 2>/dev/null || true
+  "$BIN" daemon >>"$LOG" 2>&1 &
+  local i
+  for i in $(seq 1 30); do
+    [ -p "$FIFO" ] && return 0
+    sleep 0.1
+  done
+  echo "movectl: daemon did not create $FIFO" >&2
+  exit 70
+}
+
+send_daemon() {
+  ensure_daemon
+  printf '%s\n' "$*" >"$FIFO"
+}
+
 cmd="${1:-help}"
 shift || true
 case "$cmd" in
   move)
     [ "$#" -ge 2 ] || { usage >&2; exit 64; }
-    run_uinput move "$@"
+    send_daemon "move $*"
     record_delta "$1" "$2"
     ;;
   click)
-    run_uinput click "${1:-left}"
+    send_daemon "click ${1:-left}"
     record_action click "${1:-left}"
     ;;
   nudge)
-    run_uinput nudge
+    send_daemon "nudge"
     record_delta 280 0
     ;;
   home)
-    run_uinput move -5000 -5000 40
+    send_daemon "move -5000 -5000 40"
     record_action home "top-left"
     reg_set /system/input/pointer/origin string top-left
+    ;;
+  daemon)
+    ensure_daemon
+    record_action daemon "$FIFO"
+    ;;
+  stop-daemon)
+    [ -p "$FIFO" ] && printf '%s\n' quit >"$FIFO"
+    record_action stop-daemon "$FIFO"
     ;;
   goto)
     [ "$#" -eq 1 ] || { usage >&2; exit 64; }
@@ -114,7 +144,7 @@ case "$cmd" in
     steps="$3"
     "$0" home
     sleep 0.1
-    run_uinput move "$dx" "$dy" "$steps"
+    send_daemon "move $dx $dy $steps"
     record_action goto "$target dx=$dx dy=$dy steps=$steps"
     reg_set /system/input/pointer/target string "$target"
     ;;
