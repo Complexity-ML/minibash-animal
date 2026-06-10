@@ -22,16 +22,16 @@ function runCommand(argv) {
 }
 
 const app = new Gtk.Application({
-    application_id: 'org.altitude.ControlCenter',
+    application_id: 'org.altitude.Software',
     flags: Gio.ApplicationFlags.FLAGS_NONE,
 });
 
 app.connect('activate', application => {
     const win = new Gtk.ApplicationWindow({
         application,
-        title: 'Altitude Control Center',
-        default_width: 920,
-        default_height: 620,
+        title: 'Altitude Software',
+        default_width: 960,
+        default_height: 680,
     });
 
     const root = new Gtk.Box({
@@ -44,17 +44,23 @@ app.connect('activate', application => {
     });
 
     const title = new Gtk.Label({
-        label: '<b>Altitude Control Center</b>\nBDB, services, network and package state.',
+        label: '<b>Altitude Software</b>\nSigned Altitude packages, native apps and registry state.',
         use_markup: true,
         xalign: 0,
     });
     root.append(title);
 
-    const buttons = new Gtk.Box({
+    const toolbar = new Gtk.Box({
         orientation: Gtk.Orientation.HORIZONTAL,
         spacing: 8,
     });
-    root.append(buttons);
+    root.append(toolbar);
+
+    const entry = new Gtk.Entry({
+        placeholder_text: 'package name or search term',
+        hexpand: true,
+    });
+    toolbar.append(entry);
 
     const view = new Gtk.TextView({
         editable: false,
@@ -74,26 +80,38 @@ app.connect('activate', application => {
         buffer.set_text(`${label}\n${'='.repeat(label.length)}\n\n${runCommand(argv)}`, -1);
     }
 
+    function term() {
+        return entry.get_text().trim();
+    }
+
     const actions = [
-        ['Overview', ['/bin/bash', '-lc', 'hostname; echo; cat /etc/os-release; echo; uname -a; echo; ip -4 a']],
-        ['Services', ['/bin/bash', '-lc', '/bin/bdb select services 2>&1 || /bin/bdb dump services 2>&1']],
-        ['Modules', ['/bin/bash', '-lc', '/bin/bdb select modules 2>&1 || /bin/bdb dump modules 2>&1']],
-        ['Registry', ['/bin/bash', '-lc', '/bin/bdb select registry 2>&1 || /bin/bdb dump registry 2>&1']],
-        ['Packages', ['/bin/bash', '-lc', '/bin/pkg list 2>&1 || find /usr/share/altitude/sources -type f -maxdepth 1 2>/dev/null | sort']],
-        ['Software', ['/bin/bash', '-lc', '/bin/pkg refresh 2>&1; echo; /bin/pkg search 2>&1 | sed -n "1,80p"']],
-        ['Apps', ['/bin/bash', '-lc', 'for f in /usr/share/applications/*.desktop; do name=$(sed -n "s/^Name=//p" "$f" | head -1); exec=$(sed -n "s/^Exec=//p" "$f" | head -1); [ -n "$name" ] && printf "%-32s %s\\n" "$name" "$exec"; done | sort']],
-        ['GNOME Log', ['/bin/bash', '-lc', 'tail -160 /var/log/gnome-shell.log 2>&1']],
+        ['Refresh', () => show('Refresh Repository', ['/bin/pkg', 'refresh'])],
+        ['Search', () => show('Search Packages', ['/bin/pkg', 'search', term()])],
+        ['Info', () => show('Package Info', ['/bin/pkg', 'info', term()])],
+        ['Install', () => show('Install Package', ['/bin/pkg', 'install', term()])],
+        ['Installed', () => show('Installed Packages', ['/bin/pkg', 'list'])],
+        ['Updates', () => show('Package Updates', ['/bin/pkg', 'check-updates'])],
+        ['Apps', () => show('Native Applications', ['/bin/bash', '-lc',
+            'for f in /usr/share/applications/*.desktop; do ' +
+            'name=$(sed -n "s/^Name=//p" "$f" | head -1); ' +
+            'exec=$(sed -n "s/^Exec=//p" "$f" | head -1); ' +
+            '[ -n "$name" ] && printf "%-32s %s\\n" "$name" "$exec"; ' +
+            'done | sort'])],
+        ['Registry', () => show('Package Registry', ['/bin/bash', '-lc',
+            '/bin/bdbreg list /system/package 2>&1; echo; /bin/bdbreg list /system/init 2>&1'])],
     ];
 
-    for (const [label, argv] of actions) {
+    for (const [label, callback] of actions) {
         const button = new Gtk.Button({ label });
-        button.connect('clicked', () => show(label, argv));
-        buttons.append(button);
+        button.connect('clicked', callback);
+        toolbar.append(button);
     }
+
+    entry.connect('activate', () => show('Search Packages', ['/bin/pkg', 'search', term()]));
 
     win.set_child(root);
     win.present();
-    show('Overview', actions[0][1]);
+    show('Installed Packages', ['/bin/pkg', 'list']);
 });
 
 app.run(ARGV);

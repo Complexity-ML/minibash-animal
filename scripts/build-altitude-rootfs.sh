@@ -6,6 +6,7 @@ REPO="${ALTITUDE_REPO_ROOT:-$ROOT/out/repository}"
 DEST="${ALTITUDE_ROOTFS_DIR:-$ROOT/out/altitude-rootfs}"
 ROOTFS_TGZ="${ROOTFS_TGZ:-$ROOT/out/altitude-rootfs.tar.gz}"
 PROFILE="${ALTITUDE_PROFILE:-desktop}"
+EMBED_REPOSITORY="${ALTITUDE_EMBED_REPOSITORY:-1}"
 
 case "$PROFILE" in
   desktop|rescue) ;;
@@ -169,6 +170,16 @@ done
 bash "$ROOT/scripts/assemble-altitude-rootfs.sh" "$REPO" "$DEST" "${packages[@]}"
 mkdir -p "$DEST"/{dev,proc,run,sys,tmp}
 chmod 1777 "$DEST/tmp"
+
+if [ "$EMBED_REPOSITORY" = 1 ]; then
+  mkdir -p "$DEST/var/lib/altitude/repository/packages" "$DEST/etc/altitude/keys"
+  cp -a "$REPO/INDEX" "$REPO/INDEX.sig" "$DEST/var/lib/altitude/repository/"
+  cp -a "$REPO/repository.pem" "$DEST/var/lib/altitude/repository/"
+  cp -a "$REPO/repository.pem" "$DEST/etc/altitude/keys/repository.pem"
+  cp -a "$REPO"/packages/*.altpkg "$REPO"/packages/*.altpkg.sig \
+    "$DEST/var/lib/altitude/repository/packages/"
+fi
+
 if command -v glib-compile-schemas >/dev/null 2>&1 &&
    [ -d "$DEST/usr/share/glib-2.0/schemas" ]; then
   glib-compile-schemas "$DEST/usr/share/glib-2.0/schemas"

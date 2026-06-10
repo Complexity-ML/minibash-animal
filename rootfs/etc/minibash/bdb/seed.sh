@@ -160,6 +160,13 @@ ensure_registry /system/product/id string altitude system
 ensure_registry /system/product/version string 0.1.0 system
 ensure_registry /system/product/codename string basecamp system
 ensure_registry /system/product/base string altitude system
+ensure_registry /system/package/manager string altpkg system
+ensure_registry /system/package/registry string altitude-main system
+ensure_registry /system/package/registry/enabled bool true system
+ensure_registry /system/package/registry/url string file:///var/lib/altitude/repository system
+ensure_registry /system/init/provider string busybox-init system
+ensure_registry /system/init/systemd/compatible bool true system
+ensure_registry /system/init/systemd/required bool false system
 
 # --- service dependencies: systemd-like requires/after/before relationships -
 if ! have_table service_dependencies; then

@@ -70,6 +70,7 @@ fi
 for path in \
   bin/altitude bin/bdb bin/bdbql bin/bdbsh bin/bdbctl bin/bdbreg bin/bdbconf \
   bin/bashsvc bin/login bin/passwd bin/pkg bin/altpkg-build bin/altrepo \
+  bin/altitude-software \
   bin/minibash-services \
   etc/altitude etc/minibash etc/os-release etc/lsb-release etc/hostname \
   etc/issue etc/passwd etc/group etc/shells services; do

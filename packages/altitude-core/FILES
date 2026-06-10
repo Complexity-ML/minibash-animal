@@ -5,6 +5,7 @@ bin/bdbctl
 bin/bdbreg
 bin/bdbconf
 bin/bashsvc
+bin/altitude-software
 bin/altitude-control-center
 bin/altitude-command-runner
 bin/pkg

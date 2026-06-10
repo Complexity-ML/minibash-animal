@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Altitude Software
+Comment=Install and inspect signed Altitude packages
+Exec=/bin/altitude-software
+Icon=system-software-install
+Terminal=false
+Categories=System;Settings;PackageManager;
+Keywords=altitude;software;packages;registry;altpkg;apps;
