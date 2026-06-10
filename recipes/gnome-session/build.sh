@@ -68,18 +68,17 @@ EOF
 cat > "$PAYLOAD/usr/share/applications/org.gnome.Settings.desktop" <<'EOF'
 [Desktop Entry]
 Name=Settings
-Comment=Configure Altitude GNOME
-Exec=/bin/false
+Comment=Configure Altitude Linux
+Exec=/bin/altitude-control-center
 Icon=preferences-system
 Type=Application
 Categories=GNOME;GTK;Settings;
-NoDisplay=true
 EOF
 
 {
   echo "Source: Altitude Linux"
   echo "Version: $VERSION"
-  echo "Build: non-systemd GNOME Shell Wayland session wrapper and Settings stub"
+  echo "Build: non-systemd GNOME Shell Wayland session wrapper and Settings bridge"
   echo "Upstream-note: gnome-session 48 requires GTK3 and systemd/libsystemd;"
   echo "Upstream-note: this package provides the Altitude session entry point."
 } > "$PAYLOAD/usr/share/altitude/sources/gnome-session.build"
