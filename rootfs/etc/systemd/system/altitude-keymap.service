@@ -1,0 +1,11 @@
+[Unit]
+Description=Apply Altitude console keymap
+After=altitude-seed.service local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/services/keymap.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

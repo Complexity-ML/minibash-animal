@@ -1,0 +1,13 @@
+[Unit]
+Description=Altitude elogind compatibility daemon
+After=altitude-dbus.service
+Wants=altitude-dbus.service
+
+[Service]
+Type=simple
+ExecStart=/services/elogind.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

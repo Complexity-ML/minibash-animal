@@ -1,0 +1,14 @@
+[Unit]
+Description=Altitude WiFi bootstrap
+After=altitude-kmod.service
+Before=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/services/wifi.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

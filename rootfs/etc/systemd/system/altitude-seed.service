@@ -1,0 +1,12 @@
+[Unit]
+Description=Seed Altitude registry database
+DefaultDependencies=no
+Before=sysinit.target
+
+[Service]
+Type=oneshot
+ExecStart=/etc/minibash/bdb/seed.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

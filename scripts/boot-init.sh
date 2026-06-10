@@ -46,12 +46,16 @@ $BB sleep 3
 root=""
 rootfstype="ext4"
 rootflags="rw"
+real_init="/init"
 for arg in $($BB cat /proc/cmdline); do
   case "$arg" in
     root=*)        root="${arg#root=}" ;;
     rootfstype=*)  rootfstype="${arg#rootfstype=}" ;;
     ro)            rootflags="ro" ;;
     rw)            rootflags="rw" ;;
+    altitude.init=systemd) real_init="/usr/lib/systemd/systemd" ;;
+    altitude.init=busybox|minibash.init=busybox) real_init="/init" ;;
+    altitude.real_init=*) real_init="${arg#altitude.real_init=}" ;;
   esac
 done
 
@@ -84,8 +88,8 @@ for fs in proc sys dev; do
   $BB mount --move "/$fs" "/newroot/$fs" 2>/dev/null
 done
 
-[ -x /newroot/init ] || fail "no executable /init on the new root ($root)"
+[ -x "/newroot$real_init" ] || fail "no executable $real_init on the new root ($root)"
 
-log "switch_root -> /init"
-exec $BB switch_root /newroot /init
+log "switch_root -> $real_init"
+exec $BB switch_root /newroot "$real_init"
 fail "switch_root returned (this should never happen)"

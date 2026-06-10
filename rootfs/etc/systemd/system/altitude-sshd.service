@@ -1,0 +1,13 @@
+[Unit]
+Description=Altitude SSH access
+After=altitude-seed.service network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=simple
+ExecStart=/services/sshd.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

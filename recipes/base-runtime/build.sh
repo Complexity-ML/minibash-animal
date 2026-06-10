@@ -56,7 +56,9 @@ done < <("$BUSYBOX" --list)
 for applet in init modprobe insmod depmod reboot poweroff halt; do
   ln -sf ../bin/busybox "$PAYLOAD/sbin/$applet"
 done
+[ -e "$PAYLOAD/bin/getty" ] && ln -sf ../bin/getty "$PAYLOAD/sbin/agetty"
 ln -s sbin/init "$PAYLOAD/init"
+: > "$PAYLOAD/etc/machine-id"
 
 "$CC" -O2 -static -Wall -Wextra \
   -o "$PAYLOAD/bin/bdbc" "$ROOT/rootfs/usr/src/minibash/bdbc.c"
@@ -140,7 +142,7 @@ chmod 1777 "$PAYLOAD/tmp"
   echo "Source: Altitude Linux"
   echo "Version: 0.1.0"
   echo "BDB: static C engine"
-  echo "Init: BusyBox init"
+  echo "Init: systemd-ready rootfs; BusyBox fallback"
   echo "Compiler: $("$CC" --version | head -1)"
   echo "Debian-runtime-files: 0"
 } > "$PAYLOAD/usr/share/altitude/sources/base-runtime.build"

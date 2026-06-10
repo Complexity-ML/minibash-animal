@@ -1,0 +1,14 @@
+[Unit]
+Description=Altitude GNOME graphical session
+After=altitude-dbus.service altitude-elogind.service altitude-polkit.service altitude-netmgr.service
+Wants=altitude-dbus.service altitude-elogind.service altitude-polkit.service altitude-netmgr.service
+
+[Service]
+Type=simple
+Environment=ALTITUDE_GRAPHICAL_VT=2
+ExecStart=/services/graphical.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target

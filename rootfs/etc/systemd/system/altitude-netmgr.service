@@ -1,0 +1,13 @@
+[Unit]
+Description=Altitude NetworkManager bootstrap
+After=altitude-dbus.service altitude-kmod.service systemd-udevd.service
+Wants=altitude-dbus.service
+
+[Service]
+Type=simple
+ExecStart=/services/netmgr.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Load Altitude kernel modules from registry
+After=altitude-seed.service systemd-modules-load.service
+Before=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/services/kmod.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

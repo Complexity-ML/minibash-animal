@@ -55,12 +55,17 @@ TIMEOUT 20
 LABEL minibash-A
   KERNEL /minibash/A/bzImage
   INITRD /minibash/A/initramfs.cpio.gz
-  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.slot=A
+  APPEND console=ttyS0 init=/init altitude.init=systemd systemd.unit=multi-user.target panic=0 quiet loglevel=3 minibash.slot=A
 
 LABEL minibash-B
   KERNEL /minibash/B/bzImage
   INITRD /minibash/B/initramfs.cpio.gz
-  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.slot=B
+  APPEND console=ttyS0 init=/init altitude.init=systemd systemd.unit=multi-user.target panic=0 quiet loglevel=3 minibash.slot=B
+
+LABEL minibash-${default_slot}-busybox
+  KERNEL /minibash/${default_slot}/bzImage
+  INITRD /minibash/${default_slot}/initramfs.cpio.gz
+  APPEND console=ttyS0 init=/init altitude.init=busybox panic=0 quiet loglevel=3 minibash.slot=${default_slot}
 EOF
 }
 

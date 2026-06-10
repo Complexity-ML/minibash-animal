@@ -64,12 +64,12 @@ DEFAULT live
 LABEL live
   KERNEL /kernel
   INITRD /initrd.gz
-  APPEND console=tty0 init=/init panic=0 quiet loglevel=3 minibash.keymap=fr
+  APPEND console=tty0 init=/init altitude.init=systemd systemd.unit=graphical.target panic=0 quiet loglevel=3 minibash.keymap=fr
 
 LABEL autologin
   KERNEL /kernel
   INITRD /initrd.gz
-  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.autologin=root minibash.keymap=us
+  APPEND console=ttyS0 init=/init altitude.init=systemd systemd.unit=multi-user.target panic=0 quiet loglevel=3 minibash.autologin=root minibash.keymap=us
 CFG
 
   grub_cfg="/tmp/minibash-grub.cfg"
@@ -92,17 +92,24 @@ terminal_output console
 set gfxmode=auto
 set gfxpayload=keep
 
-menuentry "Altitude Linux" {
+menuentry "Altitude Linux (systemd)" {
   search --no-floppy --file --set=root /kernel
   echo "boot root: $root"
-  linux ($root)/kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
+  linux ($root)/kernel console=tty0 init=/init altitude.init=systemd systemd.unit=graphical.target panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd ($root)/initrd.gz
 }
 
-menuentry "Altitude Linux (QWERTY)" {
+menuentry "Altitude Linux (systemd QWERTY)" {
   search --no-floppy --file --set=root /kernel
   echo "boot root: $root"
-  linux ($root)/kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
+  linux ($root)/kernel console=tty0 init=/init altitude.init=systemd systemd.unit=graphical.target panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
+  initrd ($root)/initrd.gz
+}
+
+menuentry "Altitude Linux (BusyBox fallback)" {
+  search --no-floppy --file --set=root /kernel
+  echo "boot root: $root"
+  linux ($root)/kernel console=tty0 init=/init altitude.init=busybox panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd ($root)/initrd.gz
 }
 
@@ -111,7 +118,7 @@ menuentry "Altitude Linux (serial debug)" {
   terminal_output serial
   search --no-floppy --file --set=root /kernel
   echo "boot root: $root"
-  linux ($root)/kernel console=ttyS0 init=/init panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root minibash.keymap=us
+  linux ($root)/kernel console=ttyS0 init=/init altitude.init=systemd systemd.unit=multi-user.target panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root minibash.keymap=us
   initrd ($root)/initrd.gz
 }
 CFG

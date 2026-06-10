@@ -12,18 +12,18 @@ points when software expects them:
 
 - D-Bus services in `/usr/share/dbus-1`;
 - desktop launchers in `/usr/share/applications`;
-- login/session APIs through `elogind` or a future `systemd-logind` provider;
+- login/session APIs through `elogind` while `systemd-logind` is disabled;
 - systemd unit files when a package benefits from shipping them.
 
-The default desktop image keeps BusyBox init as PID 1 and uses `elogind` for the
-GNOME login1 API, but it explicitly records systemd compatibility in the
-registry:
+The default desktop image boots through the tiny Altitude initramfs and then
+switches to systemd as PID 1. BusyBox init remains available as a bootloader
+fallback, but the normal registry state is systemd:
 
 ```text
-/system/init/provider = busybox-init
-/system/init/systemd/required = false
-/system/systemd/runtime/present = false
-/system/systemd/runtime/pid1 = false
+/system/init/provider = systemd
+/system/init/systemd/required = true
+/system/systemd/runtime/present = true
+/system/systemd/runtime/pid1 = true
 ```
 
 That means the registry must not block systemd-shaped package data. It decides
@@ -39,8 +39,8 @@ When systemd is available, systemd owns lifecycle control.
 /system/systemd/audit/enabled = true
 /system/systemd/audit/table = systemd_audit
 /system/systemd/audit/control = false
-/system/systemd/runtime/present = false
-/system/systemd/runtime/pid1 = false
+/system/systemd/runtime/present = true
+/system/systemd/runtime/pid1 = true
 ```
 
 In that model, `systemd-audit` may run `systemctl list-units`, `systemctl show`

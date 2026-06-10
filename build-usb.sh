@@ -84,17 +84,24 @@ set gfxpayload=keep
 
 search --no-floppy --label ALTITUDE --set=root
 
-menuentry "Altitude Linux" {
+menuentry "Altitude Linux (systemd)" {
   search --no-floppy --label ALTITUDE --set=root
-  echo "Booting Altitude Linux (AZERTY)"
-  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
+  echo "Booting Altitude Linux systemd (AZERTY)"
+  linux /kernel console=tty0 init=/init altitude.init=systemd systemd.unit=graphical.target panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd /initrd.gz
 }
 
-menuentry "Altitude Linux (QWERTY)" {
+menuentry "Altitude Linux (systemd QWERTY)" {
   search --no-floppy --label ALTITUDE --set=root
-  echo "Booting Altitude Linux (QWERTY)"
-  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
+  echo "Booting Altitude Linux systemd (QWERTY)"
+  linux /kernel console=tty0 init=/init altitude.init=systemd systemd.unit=graphical.target panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
+  initrd /initrd.gz
+}
+
+menuentry "Altitude Linux (BusyBox fallback)" {
+  search --no-floppy --label ALTITUDE --set=root
+  echo "Booting Altitude Linux BusyBox fallback"
+  linux /kernel console=tty0 init=/init altitude.init=busybox panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd /initrd.gz
 }
 CFG
@@ -108,21 +115,21 @@ CFG
 menuentry "Altitude Linux Desktop" {
   search --no-floppy --label ALTITUDE --set=root
   echo "Booting Altitude Linux Desktop"
-  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
+  linux /kernel console=tty0 init=/init altitude.init=systemd systemd.unit=graphical.target panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd /initrd.gz /desktop.cpio.gz
 }
 
 menuentry "Altitude Linux Desktop (debug shell)" {
   search --no-floppy --label ALTITUDE --set=root
   echo "Booting Altitude Linux Desktop debug shell"
-  linux /kernel console=tty0 init=/init panic=0 loglevel=7 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr minibash.desktop=debug
+  linux /kernel console=tty0 init=/init altitude.init=busybox panic=0 loglevel=7 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr minibash.desktop=debug
   initrd /initrd.gz /desktop.cpio.gz
 }
 
 menuentry "Altitude Linux Desktop (QWERTY)" {
   search --no-floppy --label ALTITUDE --set=root
   echo "Booting Altitude Linux Desktop (QWERTY)"
-  linux /kernel console=tty0 init=/init panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
+  linux /kernel console=tty0 init=/init altitude.init=systemd systemd.unit=graphical.target panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=us
   initrd /initrd.gz /desktop.cpio.gz
 }
 CFG
@@ -134,7 +141,7 @@ menuentry "Altitude Linux (serial debug)" {
   serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
   terminal_output serial
   echo "Booting Altitude Linux serial console"
-  linux /kernel console=ttyS0 init=/init panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root
+  linux /kernel console=ttyS0 init=/init altitude.init=systemd systemd.unit=multi-user.target panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root
   initrd /initrd.gz
 }
 CFG

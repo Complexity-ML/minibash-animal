@@ -1,0 +1,13 @@
+[Unit]
+Description=Altitude D-Bus system bus
+After=altitude-seed.service
+Before=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/services/dbus.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

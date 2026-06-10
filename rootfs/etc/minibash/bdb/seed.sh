@@ -155,7 +155,7 @@ ensure_registry /system/apps/autorefresh bool true system
 ensure_registry /system/systemd/audit/enabled bool true system
 ensure_registry /system/systemd/audit/table string systemd_audit system
 ensure_registry /system/systemd/audit/control bool false system
-ensure_registry /system/systemd/runtime/present bool false system
-ensure_registry /system/systemd/runtime/pid1 bool false system
-ensure_registry /system/init/provider string busybox-init system
-ensure_registry /system/init/systemd/required bool false system
+ensure_registry /system/systemd/runtime/present bool true system
+ensure_registry /system/systemd/runtime/pid1 bool true system
+ensure_registry /system/init/provider string systemd system
+ensure_registry /system/init/systemd/required bool true system

@@ -73,15 +73,21 @@ terminal_input console serial
 terminal_output console serial
 search --no-floppy --label ALTITUDEEFI --set=root
 
-menuentry "Altitude Linux" {
+menuentry "Altitude Linux (systemd)" {
   search --no-floppy --label ALTITUDEEFI --set=root
-  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 console=tty0 panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
+  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init altitude.init=systemd systemd.unit=graphical.target minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 console=tty0 panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd /initrd.img
 }
 
-menuentry "Altitude Linux (serial)" {
+menuentry "Altitude Linux (systemd serial)" {
   search --no-floppy --label ALTITUDEEFI --set=root
-  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root minibash.keymap=fr
+  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init altitude.init=systemd systemd.unit=multi-user.target minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 panic=0 loglevel=7 minibash.tty=ttyS0 minibash.autologin=root minibash.keymap=fr
+  initrd /initrd.img
+}
+
+menuentry "Altitude Linux (BusyBox fallback)" {
+  search --no-floppy --label ALTITUDEEFI --set=root
+  linux /kernel root=LABEL=${ROOT_LABEL} rootfstype=ext4 rw fsck.repair=yes init=/init altitude.init=busybox minibash.root=disk iwlmvm.power_scheme=1 console=ttyS0,115200 console=tty0 panic=0 loglevel=4 minibash.tty=tty1 minibash.autologin=root minibash.keymap=fr
   initrd /initrd.img
 }
 CFG

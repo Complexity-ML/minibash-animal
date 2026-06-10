@@ -76,12 +76,17 @@ TIMEOUT 20
 LABEL minibash-A
   KERNEL /minibash/A/bzImage
   INITRD /minibash/A/initramfs.cpio.gz
-  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.slot=A
+  APPEND console=ttyS0 init=/init altitude.init=systemd systemd.unit=multi-user.target panic=0 quiet loglevel=3 minibash.slot=A
 
 LABEL minibash-B
   KERNEL /minibash/B/bzImage
   INITRD /minibash/B/initramfs.cpio.gz
-  APPEND console=ttyS0 init=/init panic=0 quiet loglevel=3 minibash.slot=B
+  APPEND console=ttyS0 init=/init altitude.init=systemd systemd.unit=multi-user.target panic=0 quiet loglevel=3 minibash.slot=B
+
+LABEL minibash-A-busybox
+  KERNEL /minibash/A/bzImage
+  INITRD /minibash/A/initramfs.cpio.gz
+  APPEND console=ttyS0 init=/init altitude.init=busybox panic=0 quiet loglevel=3 minibash.slot=A
 EOF
 
 if command -v extlinux >/dev/null 2>&1; then
