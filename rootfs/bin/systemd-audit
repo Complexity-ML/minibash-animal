@@ -29,10 +29,12 @@ ensure_table() {
   ensure_bdb
   have_table systemd_audit ||
     "$BDB" create systemd_audit unit:text:pk load:text active:text sub:text \
-      description:text updated_at:int >/dev/null
+      description:text updated_at:int >/dev/null 2>&1 ||
+    have_table systemd_audit
   have_table registry ||
     "$BDB" create registry path:text:pk type:text value:text owner:text \
-      updated_at:int >/dev/null
+      updated_at:int >/dev/null 2>&1 ||
+    have_table registry
 }
 
 registry_set() {
