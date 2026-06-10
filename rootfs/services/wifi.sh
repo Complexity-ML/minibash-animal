@@ -74,7 +74,7 @@ ins kernel/net/wireless/cfg80211.ko
 ins kernel/lib/crypto/libarc4.ko
 ins kernel/net/mac80211/mac80211.ko
 ins kernel/drivers/net/wireless/intel/iwlwifi/iwlwifi.ko \
-  swcrypto=1 11n_disable=1 bt_coex_active=0 power_save=0
+  11n_disable=1 bt_coex_active=0 power_save=0
 ins kernel/drivers/net/wireless/intel/iwlwifi/mvm/iwlmvm.ko \
   power_scheme=1
 modprobe iwlmvm 2>&1 || true
@@ -123,9 +123,14 @@ if [ -n "${WIFI_BSSID:-}" ]; then
     innet && /^[[:space:]]*ssid=/ {
       print
       print "    bssid=" bssid
+      print "    proto=RSN"
+      print "    pairwise=CCMP"
+      print "    group=CCMP"
+      print "    ieee80211w=0"
       added=1
       next
     }
+    innet && /^[[:space:]]*(proto|pairwise|group|ieee80211w)=/ { if (!added) print; next }
     innet && /^[[:space:]]*bssid=/ { if (!added) print; next }
     innet && /^\}/ { innet=0; print; next }
     { print }
