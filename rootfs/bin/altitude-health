@@ -137,7 +137,7 @@ collect() {
     status_line gnome "$([ "$shell_ok" = true ] && echo ok || echo warn)" "shell_pid=${shell_pid:-0} graphical=$graphical_state gdm=$gdm_state"
     status_line gpu "$([ "$gpu_accel" = true ] && echo ok || echo warn)" "render=$gpu_render accelerated=$gpu_accel"
     status_line load ok "cpu_pressure_avg10=${pressure_cpu:-0}"
-  } | tee /tmp/altitude-health.$$
+  } >/tmp/altitude-health.$$
 
   mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
   cat /tmp/altitude-health.$$ >>"$LOG" 2>/dev/null || true

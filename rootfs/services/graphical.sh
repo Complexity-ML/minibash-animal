@@ -2,6 +2,9 @@
 # Start the Altitude GNOME desktop without systemd or a display manager.
 set -u
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export LANG="${LANG:-C}"
+export LC_ALL="${LC_ALL:-$LANG}"
+export LANGUAGE="${LANGUAGE:-$LANG}"
 exec >>/var/log/graphical.log 2>&1
 
 VT="${ALTITUDE_GRAPHICAL_VT:-2}"
@@ -89,6 +92,9 @@ RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/0}"
 LOG=/var/log/gnome-shell.log
 
 export TZ="${TZ:-UTC}"
+export LANG="${LANG:-C}"
+export LC_ALL="${LC_ALL:-$LANG}"
+export LANGUAGE="${LANGUAGE:-$LANG}"
 export XDG_RUNTIME_DIR="$RUNTIME_DIR"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export XDG_SESSION_TYPE=wayland
