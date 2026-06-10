@@ -97,6 +97,51 @@ default_route() {
   ip route show default 2>/dev/null | awk 'NR == 1 { print $0 }'
 }
 
+pressure_avg10() {
+  local file="$1" kind="${2:-some}"
+  awk -v kind="$kind" '$1 == kind {
+    for (i = 2; i <= NF; i++) {
+      split($i, kv, "=")
+      if (kv[1] == "avg10") {
+        print int(kv[2])
+        exit
+      }
+    }
+  }' "$file" 2>/dev/null || echo 0
+}
+
+audit_gpu() {
+  local card="${1:-/dev/dri/card0}" sys_card driver vendor device render shadow accelerated atomic
+  sys_card="/sys/class/drm/$(basename "$card")"
+  driver=none
+  if [ -e "$sys_card/device/driver/module" ]; then
+    driver="$(basename "$(readlink -f "$sys_card/device/driver/module" 2>/dev/null || echo none)")"
+  fi
+  vendor="$(cat "$sys_card/device/vendor" 2>/dev/null || echo unknown)"
+  device="$(cat "$sys_card/device/device" 2>/dev/null || echo unknown)"
+  render="$(bool [ -e /dev/dri/renderD128 ])"
+  shadow="$(bool grep -q 'prefers shadow buffer' /var/log/gnome-shell.log 2>/dev/null)"
+  accelerated=true
+  grep -q 'Not hardware accelerated' /var/log/gnome-shell.log 2>/dev/null && accelerated=false
+  atomic=true
+  grep -q 'non-atomic mode setting' /var/log/gnome-shell.log 2>/dev/null && atomic=false
+
+  registry_set /system/desktop/gpu/card string "$card"
+  registry_set /system/desktop/gpu/driver string "$driver"
+  registry_set /system/desktop/gpu/vendor string "$vendor"
+  registry_set /system/desktop/gpu/device string "$device"
+  registry_set /system/desktop/gpu/render-node bool "$render"
+  registry_set /system/desktop/gpu/hardware-accelerated bool "$accelerated"
+  registry_set /system/desktop/gpu/shadow-buffer bool "$shadow"
+  registry_set /system/desktop/gpu/atomic-modeset bool "$atomic"
+}
+
+audit_pressure() {
+  registry_set /system/runtime/pressure/cpu-avg10 int "$(pressure_avg10 /proc/pressure/cpu some)"
+  registry_set /system/runtime/pressure/memory-avg10 int "$(pressure_avg10 /proc/pressure/memory some)"
+  registry_set /system/runtime/pressure/io-avg10 int "$(pressure_avg10 /proc/pressure/io full)"
+}
+
 audit_apps() {
   [ -x /bin/appreg ] || return 0
   /bin/appreg refresh >/dev/null 2>&1 || return 0
@@ -177,6 +222,8 @@ cmd_refresh() {
   registry_set /system/desktop/session string "$([ "$shell_running" = true ] && echo gnome || echo none)"
   registry_set /system/desktop/gnome-shell/running bool "$shell_running"
   registry_set /system/desktop/gnome-shell/pid int "${gnome_pid:-0}"
+  audit_gpu /dev/dri/card0
+  audit_pressure
   audit_apps
 
   registry_set /system/registry/audit/enabled bool true

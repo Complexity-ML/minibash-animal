@@ -119,6 +119,11 @@ dbus_info="$(dbus-daemon --session --fork --print-address=1 --print-pid=1)"
 export DBUS_SESSION_BUS_ADDRESS="$(printf "%s\n" "$dbus_info" | sed -n '1p')"
 echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >>"$LOG"
 
+if command -v gsettings >/dev/null 2>&1; then
+  gsettings set org.gnome.desktop.interface enable-animations false >/dev/null 2>&1 || true
+  gsettings set org.gnome.desktop.search-providers disable-external true >/dev/null 2>&1 || true
+fi
+
 gnome-shell --wayland --display-server >>"$LOG" 2>&1
 status=$?
 busctl --system call org.freedesktop.login1 /org/freedesktop/login1 \
