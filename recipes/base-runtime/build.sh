@@ -57,7 +57,65 @@ for applet in init modprobe insmod depmod reboot poweroff halt; do
   ln -sf ../bin/busybox "$PAYLOAD/sbin/$applet"
 done
 [ -e "$PAYLOAD/bin/getty" ] && ln -sf ../bin/getty "$PAYLOAD/sbin/agetty"
-ln -s sbin/init "$PAYLOAD/init"
+cat > "$PAYLOAD/init" <<'EOF'
+#!/bin/sh
+# Altitude native PID 1. Keep this slot self-contained: kernel Altitude + root
+# altitude-native + Altitude services only.
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/services
+export PATH
+
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+[ -c /dev/console ] || mknod /dev/console c 5 1 2>/dev/null || true
+[ -c /dev/null ] || mknod /dev/null c 1 3 2>/dev/null || true
+mkdir -p /proc /sys /dev/pts /dev/shm /run /tmp /var/log /root
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t devpts devpts /dev/pts 2>/dev/null || true
+mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
+mount -t tmpfs tmpfs /run 2>/dev/null || true
+chmod 1777 /tmp /dev/shm 2>/dev/null || true
+
+LOG=/var/log/altitude-init.log
+log() {
+  echo "altitude-init: $*" >>"$LOG"
+  echo "altitude-init: $*" >/dev/console 2>/dev/null || true
+}
+
+root_line="$(awk '$2=="/" {print $1 " " $3 " " $4; exit}' /proc/mounts 2>/dev/null)"
+log "PID1 start $(date 2>/dev/null || true)"
+log "cmdline: $(cat /proc/cmdline 2>/dev/null)"
+log "root: ${root_line:-unknown}"
+
+if [ -x /etc/rc.altitude ]; then
+  log "running /etc/rc.altitude"
+  /bin/bash /etc/rc.altitude >>/var/log/rc.altitude.log 2>&1 || log "rc.altitude exited rc=$?"
+else
+  log "missing /etc/rc.altitude"
+fi
+
+# Last-resort network repair: rc.altitude should already start these, but PID1
+# keeps them alive enough for remote debugging if the service list regresses.
+if [ -x /services/wifi.sh ] && ! pgrep -f '/services/wifi.sh' >/dev/null 2>&1; then
+  log "starting wifi fallback"
+  setsid /services/wifi.sh >>/var/log/service-wifi-pid1.log 2>&1 &
+fi
+if [ -x /services/sshd.sh ] && ! pgrep -x dropbear >/dev/null 2>&1; then
+  log "starting sshd fallback"
+  setsid /services/sshd.sh >>/var/log/service-sshd-pid1.log 2>&1 &
+fi
+
+log "native runtime ready; opening tty1 rescue shell"
+while true; do
+  if [ -c /dev/tty1 ]; then
+    setsid /bin/sh -l </dev/tty1 >/dev/tty1 2>&1
+  else
+    /bin/sh -l </dev/console >/dev/console 2>&1
+  fi
+  log "console shell exited; respawn in 2s"
+  sleep 2
+done
+EOF
+chmod 755 "$PAYLOAD/init"
 : > "$PAYLOAD/etc/machine-id"
 
 "$CC" -O2 -static -Wall -Wextra \
