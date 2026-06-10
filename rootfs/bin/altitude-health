@@ -90,7 +90,11 @@ collect() {
   wifi_ok=false
   case "$iface" in wl*|wlan*) [ "${addr:-none}" != none ] && wifi_ok=true ;; esac
 
-  ssh_ok="$(bool pgrep -x dropbear >/dev/null 2>&1)"
+  if pgrep -x dropbear >/dev/null 2>&1; then
+    ssh_ok=true
+  else
+    ssh_ok=false
+  fi
   graphical_state="$(unit_state altitude-graphical.service)"
   shell_pid="$(pgrep -x gnome-shell 2>/dev/null | head -n 1 || true)"
   shell_ok="$(bool [ -n "$shell_pid" ])"
