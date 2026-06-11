@@ -65,7 +65,9 @@ grep -q '^NAME="Altitude Linux"$' "$TMP/final-root/etc/os-release"
 [ -x "$TMP/final-root/services/pkgd.sh" ]
 [ -f "$TMP/final-root/etc/systemd/system/altitude-health.timer" ]
 [ "$(readlink "$TMP/final-root/etc/systemd/system/timers.target.wants/altitude-health.timer")" = ../altitude-health.timer ]
-grep -q '^OnUnitActiveSec=5min$' "$TMP/final-root/etc/systemd/system/altitude-health.timer"
+grep -q '^Environment=ALTITUDE_HEALTH_REGISTRY=0$' "$TMP/final-root/etc/systemd/system/altitude-health.service"
+grep -q '^OnUnitActiveSec=15min$' "$TMP/final-root/etc/systemd/system/altitude-health.timer"
+grep -q '^OnBootSec=15min$' "$TMP/final-root/etc/systemd/system/altitude-systemd-audit.timer"
 grep -q '^Storage=volatile$' "$TMP/final-root/etc/systemd/journald.conf.d/10-altitude-desktop.conf"
 grep -q '^options nouveau atomic=1$' "$TMP/final-root/etc/modprobe.d/nouveau-omen.conf"
 [ -f "$TMP/final-root/root/.ssh/authorized_keys" ]

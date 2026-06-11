@@ -5,6 +5,8 @@ Wants=altitude-seed.service
 
 [Service]
 Type=oneshot
+Environment=ALTITUDE_HEALTH_REGISTRY=0
+Environment=ALTITUDE_HEALTH_LOG=/run/altitude-health.log
 ExecStart=/bin/altitude-health refresh
 Nice=10
 IOSchedulingClass=idle

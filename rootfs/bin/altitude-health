@@ -14,8 +14,8 @@ usage() {
   cat <<'EOF'
 usage: altitude-health [refresh|summary|watch]
 
-refresh  collect one health snapshot, update registry and append the log
-summary  collect one snapshot and print it
+refresh  collect one health snapshot, optionally update registry and append log
+summary  collect one snapshot and print it without registry writes
 watch    keep collecting every ALTITUDE_HEALTH_INTERVAL seconds
 EOF
 }
@@ -26,6 +26,7 @@ now_iso() {
 
 registry_set() {
   local path="$1" type="$2" value="$3"
+  [ "${ALTITUDE_HEALTH_REGISTRY:-1}" = 1 ] || return 0
   [ -x "$REG" ] || return 0
   "$REG" set "$path" "$type" "$value" "$OWNER" >/dev/null 2>&1 || true
 }
@@ -171,8 +172,10 @@ collect() {
     status_line load ok "cpu_pressure_avg10=${pressure_cpu:-0}"
   } >/tmp/altitude-health.$$
 
-  mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
-  cat /tmp/altitude-health.$$ >>"$LOG" 2>/dev/null || true
+  if [ "${ALTITUDE_HEALTH_LOG_ENABLE:-1}" = 1 ]; then
+    mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+    cat /tmp/altitude-health.$$ >>"$LOG" 2>/dev/null || true
+  fi
   cat /tmp/altitude-health.$$
   rm -f /tmp/altitude-health.$$
 
@@ -184,7 +187,7 @@ cmd_refresh() {
 }
 
 cmd_summary() {
-  collect
+  ALTITUDE_HEALTH_REGISTRY=0 ALTITUDE_HEALTH_LOG_ENABLE=0 collect
 }
 
 cmd_watch() {
