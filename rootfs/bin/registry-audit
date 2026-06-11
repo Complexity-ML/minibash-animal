@@ -124,6 +124,7 @@ pressure_avg10() {
 audit_gpu() {
   local card="${1:-/dev/dri/card0}" sys_card driver vendor device render shadow accelerated atomic
   local tu116_required tu116_present tu116_missing gsp_missing pmu_unavailable health
+  local gallium mesa_nouveau mesa_swrast mesa_virtio mesa_driver_present
   sys_card="/sys/class/drm/$(basename "$card")"
   driver=none
   if [ -e "$sys_card/device/driver/module" ]; then
@@ -137,6 +138,20 @@ audit_gpu() {
   grep -q 'Not hardware accelerated' /var/log/gnome-shell.log 2>/dev/null && accelerated=false
   atomic=true
   grep -q 'non-atomic mode setting' /var/log/gnome-shell.log 2>/dev/null && atomic=false
+  gallium=false
+  [ -s /usr/lib/libgallium-26.1.2.so ] && gallium=true
+  mesa_nouveau=false
+  mesa_swrast=false
+  mesa_virtio=false
+  [ -e /usr/lib/dri/nouveau_dri.so ] && mesa_nouveau=true
+  [ -e /usr/lib/dri/swrast_dri.so ] && mesa_swrast=true
+  [ -e /usr/lib/dri/virtio_gpu_dri.so ] && mesa_virtio=true
+  mesa_driver_present=false
+  case "$driver" in
+    nouveau) [ "$mesa_nouveau" = true ] && mesa_driver_present=true ;;
+    virtio_gpu) [ "$mesa_virtio" = true ] && mesa_driver_present=true ;;
+    *) [ "$gallium" = true ] && mesa_driver_present=true ;;
+  esac
   pmu_unavailable=false
   if dmesg 2>/dev/null | grep -q 'nouveau.*pmu: firmware unavailable'; then
     pmu_unavailable=true
@@ -160,7 +175,8 @@ $(modinfo nouveau 2>/dev/null | awk '/^firmware:/ {print $2}' | grep '^nvidia/tu
 EOF_FW
   fi
   health=ok
-  [ "$accelerated" = false ] && health=degraded
+  [ "$mesa_driver_present" = false ] && health=mesa-driver-missing
+  [ "$accelerated" = false ] && health=mutter-degraded
   [ "$pmu_unavailable" = true ] && health=nouveau-pmu-missing
 
   registry_set /system/desktop/gpu/card string "$card"
@@ -168,6 +184,11 @@ EOF_FW
   registry_set /system/desktop/gpu/vendor string "$vendor"
   registry_set /system/desktop/gpu/device string "$device"
   registry_set /system/desktop/gpu/render-node bool "$render"
+  registry_set /system/desktop/gpu/mesa-gallium bool "$gallium"
+  registry_set /system/desktop/gpu/mesa-driver-present bool "$mesa_driver_present"
+  registry_set /system/desktop/gpu/mesa-nouveau bool "$mesa_nouveau"
+  registry_set /system/desktop/gpu/mesa-swrast bool "$mesa_swrast"
+  registry_set /system/desktop/gpu/mesa-virtio bool "$mesa_virtio"
   registry_set /system/desktop/gpu/hardware-accelerated bool "$accelerated"
   registry_set /system/desktop/gpu/shadow-buffer bool "$shadow"
   registry_set /system/desktop/gpu/atomic-modeset bool "$atomic"

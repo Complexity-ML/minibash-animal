@@ -200,10 +200,15 @@ app.connect('activate', application => {
         ]],
         ['GNOME Log', ['/bin/bash', '-lc', 'tail -180 /var/log/gnome-shell.log 2>&1']],
         ['GPU', ['/bin/bash', '-lc',
-            '/bin/gpu 2>&1; ' +
-            'echo; echo "== compositor hints =="; ' +
-            'grep -Ei "hardware accelerated|shadow buffer|non-atomic|gbm renderer|nouveau|pmu|gsp|llvmpipe|software" /var/log/gnome-shell.log 2>/dev/null || true; ' +
-            'echo; echo "== dri =="; ls -l /dev/dri 2>&1 || true'
+            'echo "== GPU snapshot =="; /bin/bdbreg list /system/desktop/gpu 2>&1; ' +
+            'echo; echo "== DRI drivers =="; ls -la /usr/lib/dri 2>&1 || true; ' +
+            'echo; echo "== DRM devices =="; ls -l /dev/dri 2>&1 || true'
+        ]],
+        ['Refresh GPU', ['/bin/bash', '-lc',
+            'echo "Refreshing GPU audit..."; ' +
+            't 12 /bin/registry-audit gpu 2>&1 || echo "gpu audit timed out or failed"; ' +
+            'echo; /bin/bdbreg list /system/desktop/gpu 2>&1; ' +
+            'echo; echo "== compositor hints =="; grep -Ei "hardware accelerated|shadow buffer|non-atomic|gbm renderer|nouveau|pmu|gsp|llvmpipe|software" /var/log/gnome-shell.log 2>/dev/null | tail -80 || true'
         ]],
         ['Performance', ['/bin/bash', '-lc',
             'echo "== pressure =="; cat /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io 2>/dev/null || true; ' +

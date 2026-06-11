@@ -72,6 +72,7 @@ collect() {
   local ts overall=ok failed_units pid1 pid1_ok root_rw root_src root_fs
   local systemd_state network iface addr wifi_ok ssh_ok graphical_state
   local shell_pid shell_ok gdm_state gpu_render gpu_accel pressure_cpu
+  local gpu_driver mesa_driver pmu_ok atomic_ok shadow_buffer gpu_detail
   local messages status
 
   ts="$(now_iso)"
@@ -100,6 +101,19 @@ collect() {
   shell_ok="$(bool [ -n "$shell_pid" ])"
   gdm_state="$(unit_state gdm.service)"
   gpu_render="$(bool [ -e /dev/dri/renderD128 ])"
+  gpu_driver="$(basename "$(readlink -f /sys/class/drm/card0/device/driver/module 2>/dev/null || echo none)")"
+  mesa_driver=false
+  case "$gpu_driver" in
+    nouveau) [ -e /usr/lib/dri/nouveau_dri.so ] && mesa_driver=true ;;
+    virtio_gpu) [ -e /usr/lib/dri/virtio_gpu_dri.so ] && mesa_driver=true ;;
+    *) [ -s /usr/lib/libgallium-26.1.2.so ] && mesa_driver=true ;;
+  esac
+  pmu_ok=true
+  dmesg 2>/dev/null | grep -q 'nouveau.*pmu: firmware unavailable' && pmu_ok=false
+  atomic_ok=true
+  grep -q 'non-atomic mode setting' /var/log/gnome-shell.log 2>/dev/null && atomic_ok=false
+  shadow_buffer=false
+  grep -q 'prefers shadow buffer' /var/log/gnome-shell.log 2>/dev/null && shadow_buffer=true
   gpu_accel=true
   grep -q 'Not hardware accelerated' /var/log/gnome-shell.log 2>/dev/null && gpu_accel=false
   pressure_cpu="$(awk '$1 == "some" { for (i = 2; i <= NF; i++) { split($i, kv, "="); if (kv[1] == "avg10") { print int(kv[2]); exit } } }' /proc/pressure/cpu 2>/dev/null || echo 0)"
@@ -110,7 +124,10 @@ collect() {
   [ "$wifi_ok" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} wifi=no-ip"; }
   [ "$ssh_ok" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} ssh=down"; }
   [ "$shell_ok" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} gnome-shell=down"; }
-  [ "$gpu_accel" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} gpu=software"; }
+  gpu_detail="driver=$gpu_driver mesa=$mesa_driver accelerated=$gpu_accel atomic=$atomic_ok shadow=$shadow_buffer pmu=$pmu_ok"
+  [ "$mesa_driver" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} gpu=mesa-driver-missing"; }
+  [ "$gpu_accel" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} gpu=degraded"; }
+  [ "$pmu_ok" = true ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} gpu=pmu-missing"; }
   [ "${failed_units:-0}" = 0 ] || { [ "$overall" = fail ] || overall=warn; messages="${messages} failed-units=$failed_units"; }
   [ -n "$messages" ] || messages="all primary checks passed"
 
@@ -124,6 +141,11 @@ collect() {
   registry_set /system/health/gnome-shell bool "$shell_ok"
   registry_set /system/health/gpu-render bool "$gpu_render"
   registry_set /system/health/gpu-accelerated bool "$gpu_accel"
+  registry_set /system/health/gpu-driver string "$gpu_driver"
+  registry_set /system/health/gpu-mesa-driver bool "$mesa_driver"
+  registry_set /system/health/gpu-pmu bool "$pmu_ok"
+  registry_set /system/health/gpu-atomic bool "$atomic_ok"
+  registry_set /system/health/gpu-shadow-buffer bool "$shadow_buffer"
   registry_set /system/health/systemd-state string "$systemd_state"
   registry_set /system/health/failed-units int "${failed_units:-0}"
   registry_set /system/health/network-interface string "${iface:-none}"
@@ -139,7 +161,7 @@ collect() {
     status_line wifi "$([ "$wifi_ok" = true ] && echo ok || echo warn)" "iface=${iface:-none} ipv4=${addr:-none}"
     status_line ssh "$([ "$ssh_ok" = true ] && echo ok || echo warn)" "dropbear=$ssh_ok"
     status_line gnome "$([ "$shell_ok" = true ] && echo ok || echo warn)" "shell_pid=${shell_pid:-0} graphical=$graphical_state gdm=$gdm_state"
-    status_line gpu "$([ "$gpu_accel" = true ] && echo ok || echo warn)" "render=$gpu_render accelerated=$gpu_accel"
+    status_line gpu "$([ "$gpu_accel" = true ] && [ "$pmu_ok" = true ] && echo ok || echo warn)" "$gpu_detail"
     status_line load ok "cpu_pressure_avg10=${pressure_cpu:-0}"
   } >/tmp/altitude-health.$$
 
