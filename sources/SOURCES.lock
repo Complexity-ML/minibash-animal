@@ -747,3 +747,8 @@ Source: udisks
 Version: 2.11.1
 URL: https://github.com/storaged-project/udisks/releases/download/udisks-2.11.1/udisks-2.11.1.tar.bz2
 SHA256: e88c52bae02fa13414604bbef42c6bb91c2e24177ee0057ed55c6bd7451bcb6d
+
+Source: grub
+Version: 2.12
+URL: https://ftp.gnu.org/gnu/grub/grub-2.12.tar.xz
+SHA256: f3c97391f7c4eaa677a78e090c7e97e6dc47b16f655f04683ebd37bef7fe0faa

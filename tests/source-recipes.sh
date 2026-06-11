@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 for recipe in busybox bash base-runtime binutils gcc-bootstrap linux-headers glibc-bootstrap \
-  forge-tools forge-libelf forge-openssl linux; do
+  forge-tools forge-libelf forge-openssl linux grub; do
   manifest="$ROOT/recipes/$recipe/MANIFEST"
   build="$ROOT/recipes/$recipe/build.sh"
   [ -f "$manifest" ]
@@ -45,6 +45,10 @@ grep -q '^Source: gawk$' "$ROOT/sources/SOURCES.lock"
 grep -q '^Source: flex$' "$ROOT/sources/SOURCES.lock"
 grep -q '^Source: elfutils$' "$ROOT/sources/SOURCES.lock"
 grep -q '^Source: openssl$' "$ROOT/sources/SOURCES.lock"
+grep -q '^Source: grub$' "$ROOT/sources/SOURCES.lock"
+grep -q -- '--with-platform=efi' "$ROOT/recipes/grub/build.sh"
+grep -q 'TARGET_CC=' "$ROOT/recipes/grub/build.sh"
+grep -q 'ac_cv_header_libdevmapper_h=no' "$ROOT/recipes/grub/build.sh"
 grep -q '^Source: bash$' "$ROOT/sources/SOURCES.lock"
 grep -q -- '--enable-static-link' "$ROOT/recipes/bash/build.sh"
 grep -q 'LDFLAGS="-static"' "$ROOT/recipes/bash/build.sh"

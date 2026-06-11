@@ -1,4 +1,4 @@
-# minibash disk-root. errors=remount-ro keeps a damaged fs read-only at runtime
+# Altitude disk-root. errors=remount-ro keeps a damaged fs read-only at runtime
 # (safe); passno 1 + fsck.repair=yes on the kernel cmdline make the initramfs
 # auto-repair the root on the next boot instead of dropping to a ro shell.
-LABEL=minibashroot  /       ext4   errors=remount-ro,noatime  0  1
+LABEL=altitude-native  /       ext4   errors=remount-ro,noatime  0  1

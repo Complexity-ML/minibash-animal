@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-grub-efi-tools
+Version: 2.12
+Architecture: amd64
+Description: GRUB EFI image tools for building Altitude-owned bootloaders
