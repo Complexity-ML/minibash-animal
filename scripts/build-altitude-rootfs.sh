@@ -29,6 +29,8 @@ base_packages=(
   altitude-kernel
   altitude-dropbear
   altitude-wpa-supplicant
+  altitude-util-linux
+  altitude-e2fsprogs
   altitude-dosfstools
   altitude-identity
   altitude-core
@@ -134,7 +136,6 @@ desktop_packages=(
   altitude-libseccomp
   altitude-libcap
   altitude-libnl
-  altitude-util-linux
   altitude-alsa
   altitude-libsndfile
   altitude-pulseaudio

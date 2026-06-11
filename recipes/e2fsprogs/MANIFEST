@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-e2fsprogs
+Version: 1.47.3
+Architecture: amd64
+Description: ext2/ext3/ext4 filesystem utilities, including mkfs.ext4, fsck.ext4, tune2fs and e2label

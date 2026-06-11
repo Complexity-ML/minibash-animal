@@ -757,3 +757,8 @@ Source: dosfstools
 Version: 4.2
 URL: https://github.com/dosfstools/dosfstools/releases/download/v4.2/dosfstools-4.2.tar.gz
 SHA256: 64926eebf90092dca21b14259a5301b7b98e7b1943e8a201c7d726084809b527
+
+Source: e2fsprogs
+Version: 1.47.3
+URL: https://mirrors.edge.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v1.47.3/e2fsprogs-1.47.3.tar.gz
+SHA256: 7d4612f4e4f7ca6c2f669679028bcb02763e3b6280c9c19b2cf168eaf65e88af

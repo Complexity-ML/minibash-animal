@@ -75,7 +75,7 @@ build_layer shell-schemas gsettings-desktop-schemas
 build_layer desktop-data xkeyboard-config iso-codes
 build_layer sandbox libseccomp
 build_layer shell-desktop gnome-desktop
-build_layer system-libs libcap util-linux dosfstools
+build_layer system-libs libcap util-linux e2fsprogs dosfstools
 build_layer devices eudev
 build_layer device-glue libgudev
 build_layer login elogind
