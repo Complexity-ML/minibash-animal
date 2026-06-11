@@ -43,6 +43,9 @@ start_if_missing() {
 cleanup() {
   log "stopping GNOME session"
   killall gnome-shell 2>/dev/null || true
+  killall gnome-shell-calendar-server 2>/dev/null || true
+  killall ibus-daemon 2>/dev/null || true
+  killall ibus-extension-gtk3 2>/dev/null || true
 }
 trap '' HUP
 trap cleanup TERM INT
@@ -103,6 +106,11 @@ export TZ="${TZ:-UTC}"
 export LANG="${LANG:-C}"
 export LC_ALL="${LC_ALL:-$LANG}"
 export LANGUAGE="${LANGUAGE:-$LANG}"
+if command -v locale >/dev/null 2>&1 && ! locale -a 2>/dev/null | grep -qx "$LC_ALL"; then
+  export LANG=C
+  export LC_ALL=C
+  export LANGUAGE=C
+fi
 export XDG_RUNTIME_DIR="$RUNTIME_DIR"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export XDG_SESSION_TYPE=wayland
@@ -149,6 +157,10 @@ if pgrep -x gnome-shell >/dev/null 2>&1; then
   log "gnome-shell already running"
   exec sleep infinity
 fi
+
+killall gnome-shell-calendar-server 2>/dev/null || true
+killall ibus-daemon 2>/dev/null || true
+killall ibus-extension-gtk3 2>/dev/null || true
 
 log "starting GNOME on tty$VT"
 if command -v openvt >/dev/null 2>&1; then

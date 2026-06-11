@@ -6,3 +6,5 @@ Wants=altitude-seed.service
 [Service]
 Type=oneshot
 ExecStart=/bin/altitude-health refresh
+Nice=10
+IOSchedulingClass=idle

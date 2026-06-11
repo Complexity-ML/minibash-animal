@@ -3,8 +3,8 @@ Description=Refresh Altitude health snapshot
 
 [Timer]
 OnBootSec=45s
-OnUnitActiveSec=1min
-AccuracySec=10s
+OnUnitActiveSec=5min
+AccuracySec=30s
 Unit=altitude-health.service
 
 [Install]

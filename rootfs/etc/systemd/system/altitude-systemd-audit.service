@@ -7,3 +7,5 @@ Wants=altitude-seed.service
 Type=oneshot
 ExecStart=/bin/systemd-audit refresh
 TimeoutStartSec=30
+Nice=10
+IOSchedulingClass=idle

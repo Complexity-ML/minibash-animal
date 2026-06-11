@@ -65,6 +65,8 @@ grep -q '^NAME="Altitude Linux"$' "$TMP/final-root/etc/os-release"
 [ -x "$TMP/final-root/services/pkgd.sh" ]
 [ -f "$TMP/final-root/etc/systemd/system/altitude-health.timer" ]
 [ "$(readlink "$TMP/final-root/etc/systemd/system/timers.target.wants/altitude-health.timer")" = ../altitude-health.timer ]
+grep -q '^OnUnitActiveSec=5min$' "$TMP/final-root/etc/systemd/system/altitude-health.timer"
+grep -q '^Storage=volatile$' "$TMP/final-root/etc/systemd/journald.conf.d/10-altitude-desktop.conf"
 [ -f "$TMP/final-root/root/.ssh/authorized_keys" ]
 grep -q '^PROFILE=desktop$' "$TMP/final-root/etc/altitude/desktop-base.conf"
 grep -q '^polkitd:x:' "$TMP/final-root/etc/group"
