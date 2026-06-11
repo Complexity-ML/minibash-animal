@@ -123,7 +123,7 @@ pressure_avg10() {
 
 audit_gpu() {
   local card="${1:-/dev/dri/card0}" sys_card driver vendor device render shadow accelerated atomic atomic_requested
-  local tu116_required tu116_present tu116_missing gsp_missing pmu_unavailable health
+  local tu116_required tu116_present tu116_missing gsp_missing pmu_unavailable gsp_version health
   local gallium mesa_nouveau mesa_swrast mesa_virtio mesa_driver_present
   sys_card="/sys/class/drm/$(basename "$card")"
   driver=none
@@ -161,6 +161,8 @@ audit_gpu() {
   if dmesg 2>/dev/null | grep -q 'nouveau.*pmu: firmware unavailable'; then
     pmu_unavailable=true
   fi
+  gsp_version="$(dmesg 2>/dev/null | sed -n 's/.*nouveau .* gsp: RM version: //p' | tail -n 1)"
+  [ -n "$gsp_version" ] || gsp_version=none
   tu116_required=0
   tu116_present=0
   tu116_missing=0
@@ -199,6 +201,14 @@ EOF_FW
   registry_set /system/desktop/gpu/atomic-modeset bool "$atomic"
   registry_set /system/desktop/gpu/atomic-requested bool "$atomic_requested"
   registry_set /system/desktop/gpu/pmu-firmware bool "$([ "$pmu_unavailable" = true ] && echo false || echo true)"
+  registry_set /system/desktop/gpu/gsp-version string "$gsp_version"
+  if [ "$gsp_version" != none ]; then
+    # nouveau can advertise multiple supported GSP versions through modinfo.
+    # Once one GSP RM is active, missing alternate-version blobs are not a
+    # runtime failure for this boot.
+    tu116_missing=0
+    gsp_missing=0
+  fi
   registry_set /system/desktop/gpu/tu116-firmware-required int "$tu116_required"
   registry_set /system/desktop/gpu/tu116-firmware-present int "$tu116_present"
   registry_set /system/desktop/gpu/tu116-firmware-missing int "$tu116_missing"

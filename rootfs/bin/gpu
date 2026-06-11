@@ -30,6 +30,19 @@ else
 fi
 
 echo
+echo "== nouveau gsp =="
+dmesg 2>/dev/null | grep -Ei 'nouveau .*gsp:|nouveau .*pmu:' | tail -20 || true
+for fw in \
+  nvidia/tu116/gsp/gsp-570.144.bin \
+  nvidia/tu116/gsp/bootloader-570.144.bin; do
+  if [ -s "/usr/lib/firmware/$fw" ] || [ -s "/lib/firmware/$fw" ]; then
+    printf 'ok      %s\n' "$fw"
+  else
+    printf 'missing %s\n' "$fw"
+  fi
+done
+
+echo
 echo "== modules =="
 grep -E '(^drm|^drm_kms_helper|^i915|^amdgpu|^nouveau|^simpledrm)' /proc/modules 2>/dev/null || echo "no gpu modules loaded"
 
