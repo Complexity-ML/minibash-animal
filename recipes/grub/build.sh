@@ -17,19 +17,21 @@ if [ -z "$COMPILER" ]; then
   elif command -v "$TARGET-gcc" >/dev/null 2>&1; then
     COMPILER="$TARGET-gcc"
   else
-    COMPILER=gcc
+    COMPILER="$TOOLCHAIN/bin/$TARGET-gcc"
   fi
 fi
 TARBALL="$(bash "$ROOT/scripts/source-fetch.sh" grub)"
 TARGET_CC="${TARGET_CC:-$TOOLCHAIN/bin/$TARGET-gcc}"
+TARGET_AR="${TARGET_AR:-$TOOLCHAIN/bin/$TARGET-ar}"
 TARGET_OBJCOPY="${TARGET_OBJCOPY:-$TOOLCHAIN/bin/$TARGET-objcopy}"
 TARGET_STRIP="${TARGET_STRIP:-$TOOLCHAIN/bin/$TARGET-strip}"
 TARGET_NM="${TARGET_NM:-$TOOLCHAIN/bin/$TARGET-nm}"
 TARGET_RANLIB="${TARGET_RANLIB:-$TOOLCHAIN/bin/$TARGET-ranlib}"
+BUILD_CC="${BUILD_CC:-$COMPILER}"
 
 export PATH="/opt/altitude/forge/bin:$PATH"
 
-for tool in "$TARGET_CC" "$TARGET_OBJCOPY" "$TARGET_STRIP" "$TARGET_NM" "$TARGET_RANLIB"; do
+for tool in "$BUILD_CC" "$TARGET_CC" "$TARGET_AR" "$TARGET_OBJCOPY" "$TARGET_STRIP" "$TARGET_NM" "$TARGET_RANLIB"; do
   [ -x "$tool" ] || { echo "grub: missing Altitude target tool: $tool" >&2; exit 1; }
 done
 
@@ -37,11 +39,20 @@ rm -rf "$WORK"
 mkdir -p "$WORK/source" "$WORK/build" "$WORK/payload$PREFIX" \
   "$WORK/payload/usr/share/altitude/sources" "$OUT"
 tar -xf "$TARBALL" -C "$WORK/source" --strip-components=1
+[ -f "$WORK/source/grub-core/extra_deps.lst" ] ||
+  : > "$WORK/source/grub-core/extra_deps.lst"
 
 (
   cd "$WORK/build"
   CC="$COMPILER" \
+  AR="$TARGET_AR" \
+  RANLIB="$TARGET_RANLIB" \
+  NM="$TARGET_NM" \
+  STRIP="$TARGET_STRIP" \
+  OBJCOPY="$TARGET_OBJCOPY" \
+  BUILD_CC="$BUILD_CC" \
   TARGET_CC="$TARGET_CC" \
+  TARGET_AR="$TARGET_AR" \
   TARGET_OBJCOPY="$TARGET_OBJCOPY" \
   TARGET_STRIP="$TARGET_STRIP" \
   TARGET_NM="$TARGET_NM" \
@@ -68,6 +79,7 @@ find "$WORK/payload$PREFIX" -type f -perm -0100 -exec strip --strip-unneeded {} 
   echo "Target: $TARGET"
   echo "Platform: x86_64-efi"
   echo "Compiler: $("$COMPILER" --version | head -1)"
+  echo "Build-Compiler: $("$BUILD_CC" --version | head -1)"
   echo "Target-Compiler: $("$TARGET_CC" --version | head -1)"
 } > "$WORK/payload/usr/share/altitude/sources/grub.build"
 
