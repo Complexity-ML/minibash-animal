@@ -52,7 +52,7 @@ done
 bash "$ROOT/scripts/assemble-altitude-rootfs.sh" "$TMP/repository" \
   "$TMP/final-root" altitude-base altitude-kernel altitude-firmware \
   altitude-identity altitude-core altitude-services altitude-access \
-  altitude-agentic-shell altitude-dev-base altitude-dev-tools \
+  altitude-agentic-shell altitude-dev-base \
   altitude-desktop-base
 grep -q '^NAME="Altitude Linux"$' "$TMP/final-root/etc/os-release"
 grep -q '^LANG=C$' "$TMP/final-root/etc/locale.conf"
@@ -61,7 +61,6 @@ grep -q '^LANG=C$' "$TMP/final-root/etc/locale.conf"
 [ -x "$TMP/final-root/bin/alt-agent" ]
 [ -x "$TMP/final-root/bin/alt-dev-check" ]
 [ -x "$TMP/final-root/bin/alt-dev-env" ]
-[ -x "$TMP/final-root/bin/alt-ide" ]
 [ -x "$TMP/final-root/bin/alt-keyboard-layout" ]
 [ -x "$TMP/final-root/bin/alt-shell-lint" ]
 [ -x "$TMP/final-root/bin/altpkg-install" ]

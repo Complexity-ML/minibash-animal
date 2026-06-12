@@ -73,12 +73,6 @@ PATH="$TMP/bin:$PATH" ALTITUDE_AGENT_SCRIPTS="$TMP/scripts" ALTITUDE_AGENT_LOG_R
 grep -q '^demo$' "$TMP/recipes.out"
 
 PATH="$TMP/bin:$PATH" ALTITUDE_AGENT_SCRIPTS="$TMP/scripts" ALTITUDE_AGENT_LOG_ROOT="$TMP/logs" \
-ALTITUDE_IDE_BIN="$ROOT/rootfs/bin/alt-ide" \
-ALTITUDE_AGENT_SOURCE_ROOT="$TMP" \
-  bash "$ROOT/rootfs/bin/alt-agent" edit recipes/demo/build.sh > "$TMP/edit.out"
-grep -q "path=recipes/demo/build.sh" "$TMP/edit.out"
-
-PATH="$TMP/bin:$PATH" ALTITUDE_AGENT_SCRIPTS="$TMP/scripts" ALTITUDE_AGENT_LOG_ROOT="$TMP/logs" \
   bash "$ROOT/rootfs/bin/alt-agent" publish-staging > "$TMP/publish.out"
 grep -q publish "$TMP/publish.out"
 

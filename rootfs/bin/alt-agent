@@ -12,7 +12,6 @@ REPO_ROOT="${ALTITUDE_REPO_ROOT:-$WORKSHOP/repository}"
 PKG_BIN="${ALTITUDE_PKG_BIN:-/bin/pkg}"
 BDBCTL_BIN="${ALTITUDE_BDBCTL_BIN:-/bin/bdbctl}"
 SYSTEMD_AUDIT_BIN="${ALTITUDE_SYSTEMD_AUDIT_BIN:-/bin/systemd-audit}"
-ALT_IDE_BIN="${ALTITUDE_IDE_BIN:-/bin/alt-ide}"
 
 usage() {
   cat <<'USAGE'
@@ -21,7 +20,6 @@ usage: alt-agent COMMAND [ARGS...]
 Safe operator commands for agent-assisted Altitude development:
   env                         print workshop environment exports
   recipes                     list available source recipes
-  edit PATH                   print an Altitude source file through alt-ide
   build-recipe NAME           build one source recipe into package staging
   publish-staging             publish staged .altpkg files to the local repo
   repo-refresh                verify configured repository metadata
@@ -30,7 +28,6 @@ Safe operator commands for agent-assisted Altitude development:
   dev-env                     show native development tool availability
   dev-check                   run Altitude development checks
   shell-lint [PATH...]        lint shell scripts with shellcheck or fallback
-  ide ARGS...                 run the agentic Altitude IDE command surface
   systemd-audit               refresh and show observed systemd audit state
   logs NAME                   show recent systemd journal or service log
   status                      summarize repo, packages and systemd health
@@ -83,13 +80,6 @@ cmd_recipes() {
     sed 's|.*/||' | sort
 }
 
-cmd_edit() {
-  local path="${1:-}"
-  [ -n "$path" ] || die "missing path"
-  log "edit $path"
-  exec "$ALT_IDE_BIN" files open "$path"
-}
-
 cmd_publish_staging() {
   [ -x "$SCRIPTS/publish-workshop-packages.sh" ] || die "missing publish script: $SCRIPTS/publish-workshop-packages.sh"
   source_workshop
@@ -137,12 +127,6 @@ cmd_shell_lint() {
   /bin/alt-shell-lint "$@"
 }
 
-cmd_ide() {
-  [ -x "$ALT_IDE_BIN" ] || die "missing $ALT_IDE_BIN"
-  log "ide $*"
-  "$ALT_IDE_BIN" "$@"
-}
-
 cmd_systemd_audit() {
   log "systemd-audit"
   "$SYSTEMD_AUDIT_BIN" refresh
@@ -182,7 +166,6 @@ shift || true
 case "$command" in
   env) cmd_env ;;
   recipes) cmd_recipes ;;
-  edit) cmd_edit "$@" ;;
   build-recipe) cmd_build_recipe "$@" ;;
   publish-staging) cmd_publish_staging "$@" ;;
   repo-refresh) cmd_repo_refresh ;;
@@ -191,7 +174,6 @@ case "$command" in
   dev-env) cmd_dev_env "$@" ;;
   dev-check) cmd_dev_check "$@" ;;
   shell-lint) cmd_shell_lint "$@" ;;
-  ide) cmd_ide "$@" ;;
   systemd-audit) cmd_systemd_audit ;;
   logs) cmd_logs "$@" ;;
   status) cmd_status ;;

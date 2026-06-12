@@ -36,7 +36,6 @@ base_packages=(
   altitude-core
   altitude-agentic-shell
   altitude-dev-base
-  altitude-dev-tools
   altitude-services
   altitude-access
 )

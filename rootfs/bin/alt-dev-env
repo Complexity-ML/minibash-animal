@@ -15,7 +15,6 @@ check_tool() {
 echo "Altitude dev environment"
 echo "status	tool	detail"
 check_tool shell bash "install altitude-bash"
-check_tool ide-backend alt-ide "install altitude-dev-tools"
 check_tool vcs git "build/package git"
 check_tool search rg "build/package ripgrep"
 check_tool make make "install runtime make"
