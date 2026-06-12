@@ -58,6 +58,7 @@ desktop_packages=(
   altitude-systemd
   altitude-glib
   altitude-cantarell-fonts
+  altitude-dejavu-fonts
   altitude-freetype
   altitude-fontconfig
   altitude-libpng

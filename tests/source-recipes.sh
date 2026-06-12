@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 for recipe in busybox bash base-runtime binutils gcc-bootstrap linux-headers glibc-bootstrap \
-  forge-tools forge-libelf forge-openssl linux grub dosfstools vim; do
+  forge-tools forge-libelf forge-openssl linux grub dosfstools vim dejavu-fonts; do
   manifest="$ROOT/recipes/$recipe/MANIFEST"
   build="$ROOT/recipes/$recipe/build.sh"
   [ -f "$manifest" ]

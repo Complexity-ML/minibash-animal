@@ -1,0 +1,5 @@
+Format: altitude-package-1
+Name: altitude-dejavu-fonts
+Version: 2.37
+Architecture: all
+Description: DejaVu Sans and Sans Mono fonts for Altitude desktop text rendering

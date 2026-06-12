@@ -7,7 +7,7 @@ recipes=(
   python-build-runtime ninja meson cmake
   libffi pcre2 expat glib dbus
   forge-mesa-python wayland wayland-protocols libdrm mesa
-  libpng freetype fontconfig pixman cairo harfbuzz pango gtk4
+  libpng freetype fontconfig dejavu-fonts pixman cairo harfbuzz pango gtk4
   fribidi datrie libthai gdk-pixbuf graphene libepoxy libxkbcommon
   gsettings-desktop-schemas gnome-desktop mutter gnome-shell gnome-session
   elogind polkit rtkit accountsservice upower udisks
@@ -28,7 +28,7 @@ sources=(
   python-build-runtime ninja meson cmake
   libffi pcre2 expat glib dbus
   mako pyyaml markupsafe wayland wayland_protocols libdrm mesa
-  libpng freetype fontconfig pixman cairo harfbuzz pango gtk4
+  libpng freetype fontconfig dejavu-fonts pixman cairo harfbuzz pango gtk4
   fribidi datrie libthai gdk-pixbuf graphene libepoxy libxkbcommon
   gsettings-desktop-schemas gnome-desktop mutter gnome-shell gnome-session
   elogind polkit rtkit accountsservice upower udisks

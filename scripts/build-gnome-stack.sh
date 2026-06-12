@@ -56,7 +56,7 @@ build_layer x11 libx11 libxext libxfixes
 build_layer graphics mesa
 build_layer image-primitives libpng
 build_layer ui-primitives freetype pixman
-build_layer fonts fontconfig cantarell-fonts
+build_layer fonts fontconfig cantarell-fonts dejavu-fonts
 build_layer text-primitives fribidi datrie
 build_layer thai libthai
 build_layer image gdk-pixbuf libtiff libjpeg-turbo

@@ -328,6 +328,11 @@ Version: 0.303.1
 URL: https://download.gnome.org/sources/cantarell-fonts/0.303/cantarell-fonts-0.303.1.tar.xz
 SHA256: f9463a0659c63e57e381fdd753cf1929225395c5b49135989424761830530411
 
+Source: dejavu-fonts
+Version: 2.37
+URL: https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.tar.bz2
+SHA256: fa9ca4d13871dd122f61258a80d01751d603b4d3ee14095d65453b4e846e17d7
+
 Source: pixman
 Version: 0.46.4
 URL: https://www.x.org/releases/individual/lib/pixman-0.46.4.tar.xz

@@ -1,5 +1,5 @@
 [org.gnome.desktop.interface]
 font-name='Cantarell 11'
 document-font-name='Cantarell 11'
-monospace-font-name='Monospace 11'
+monospace-font-name='DejaVu Sans Mono 11'
 text-scaling-factor=1.0
