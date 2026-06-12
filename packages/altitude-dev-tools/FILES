@@ -1,8 +1,1 @@
-bin/alt-edit
 bin/alt-ide
-bin/alt-ide-terminal
-bin/alt-vim
-bin/altitude-ide-ui
-etc/altitude/vim
-usr/share/applications/altitude-ide.desktop
-usr/share/applications/altitude-dev-console.desktop

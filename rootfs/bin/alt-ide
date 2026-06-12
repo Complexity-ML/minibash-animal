@@ -7,7 +7,6 @@ POLICY="${ALTITUDE_AGENT_POLICY:-/etc/altitude/agent/policy.conf}"
 SOURCE_ROOT="${ALTITUDE_AGENT_SOURCE_ROOT:-/root/minibash-linux}"
 [ -d "$SOURCE_ROOT" ] || SOURCE_ROOT="$(pwd)"
 ALT_AGENT_BIN="${ALT_IDE_AGENT_BIN:-/bin/alt-agent}"
-ALT_EDIT_BIN="${ALT_IDE_EDIT_BIN:-/bin/alt-edit}"
 ALT_DEV_ENV_BIN="${ALT_IDE_DEV_ENV_BIN:-/bin/alt-dev-env}"
 ALT_SHELL_LINT_BIN="${ALT_IDE_SHELL_LINT_BIN:-/bin/alt-shell-lint}"
 ALT_IDE_STATE_DIR="${ALT_IDE_STATE_DIR:-/run/altitude-ide}"
@@ -59,7 +58,7 @@ language plugins.
 Commands:
   workspace status             show workspace, package and tool status
   files list [QUERY]           list project files
-  files open PATH              edit a project file
+  files open PATH              print a project file for IDE frontends
   session start [NAME]         start an observable IDE session
   session status               show current IDE session state
   session run ID [ARGS...]     run and log one action in the session
@@ -77,10 +76,12 @@ Commands:
   language bash lint [PATH...] lint Bash files
   language bash run PATH       run one Bash script safely from workspace
   language bash new PATH       create a Bash script template and open it
+  language bash snippets       list Bash snippets
+  language bash snippet ID     print one Bash snippet
 
 Compatibility:
   alt-ide edit PATH
-  alt-ide PATH                 open PATH
+  alt-ide PATH                 print PATH
 USAGE
 }
 
@@ -113,7 +114,10 @@ cmd_files() {
     open)
       local path="${2:-}"
       valid_relpath "$path" || die "unsafe path: $path"
-      exec "$ALT_EDIT_BIN" "$path"
+      [ -f "$path" ] || die "file missing: $path"
+      echo "path=$path"
+      echo
+      cat "$path"
       ;;
     *) die "unknown files command: $sub" ;;
   esac
@@ -211,6 +215,8 @@ agent.next	Next upgrades	alt-ide agent next
 language.bash.lint	Bash lint	alt-ide language bash lint [PATH...]
 language.bash.run	Bash run	alt-ide language bash run PATH
 language.bash.new	Bash new file	alt-ide language bash new PATH
+language.bash.snippets	Bash snippets	alt-ide language bash snippets
+language.bash.snippet	Bash snippet	alt-ide language bash snippet ID
 task.check	Task check	alt-ide task run check
 task.publish	Task publish	alt-ide task run publish
 task.audit	Task audit	alt-ide task run audit
@@ -233,6 +239,8 @@ EOF
         language.bash.lint) cmd_language bash lint "$@" ;;
         language.bash.run) cmd_language bash run "$@" ;;
         language.bash.new) cmd_language bash new "$@" ;;
+        language.bash.snippets) cmd_language bash snippets "$@" ;;
+        language.bash.snippet) cmd_language bash snippet "$@" ;;
         task.check) cmd_task run check "$@" ;;
         task.publish) cmd_task run publish "$@" ;;
         task.audit) cmd_task run audit "$@" ;;
@@ -394,7 +402,135 @@ cmd_language_bash() {
         echo
       } > "$path"
       chmod +x "$path"
-      exec "$ALT_EDIT_BIN" "$path"
+      echo "created=$path"
+      ;;
+    snippets)
+      cat <<'EOF'
+strict	Strict Bash header
+function	Bash function
+main	Main function entrypoint
+case	Cleanup case block
+args	Argument parser skeleton
+confirm	Confirmation prompt
+log	Log helpers
+service	Systemd service probe
+EOF
+      ;;
+    snippet)
+      local id="${1:-}"
+      [ -n "$id" ] || die "usage: alt-ide language bash snippet ID"
+      case "$id" in
+        strict)
+          cat <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+EOF
+          ;;
+        function)
+          cat <<'EOF'
+my_function() {
+  local name="${1:-}"
+  [ -n "$name" ] || { echo "missing name" >&2; return 64; }
+  echo "$name"
+}
+
+EOF
+          ;;
+        main)
+          cat <<'EOF'
+main() {
+  local command="${1:-help}"
+  shift || true
+
+  case "$command" in
+    help|-h|--help) usage ;;
+    *) die "unknown command: $command" ;;
+  esac
+}
+
+main "$@"
+EOF
+          ;;
+        case)
+          cat <<'EOF'
+case "${1:-}" in
+  start)
+    ;;
+  stop)
+    ;;
+  status)
+    ;;
+  *)
+    echo "usage: $0 {start|stop|status}" >&2
+    exit 64
+    ;;
+esac
+EOF
+          ;;
+        args)
+          cat <<'EOF'
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      break
+      ;;
+  esac
+  shift
+done
+EOF
+          ;;
+        confirm)
+          cat <<'EOF'
+confirm() {
+  local prompt="${1:-Continue?}"
+  local answer
+  printf '%s [y/N] ' "$prompt"
+  read -r answer
+  case "$answer" in
+    y|Y|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+EOF
+          ;;
+        log)
+          cat <<'EOF'
+log() {
+  printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
+}
+
+die() {
+  log "error: $*"
+  exit 1
+}
+
+EOF
+          ;;
+        service)
+          cat <<'EOF'
+service_state() {
+  local unit="${1:?unit required}"
+  systemctl is-active "$unit" 2>/dev/null || true
+  systemctl is-enabled "$unit" 2>/dev/null || true
+}
+
+EOF
+          ;;
+        *) die "unknown bash snippet: $id" ;;
+      esac
       ;;
     *) die "unknown bash command: $sub" ;;
   esac

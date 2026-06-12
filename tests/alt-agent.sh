@@ -47,12 +47,9 @@ cat > "$TMP/scripts/publish-workshop-packages.sh" <<'EOF'
 #!/usr/bin/env bash
 echo publish
 EOF
-cat > "$TMP/bin/alt-edit" <<'EOF'
-#!/usr/bin/env bash
-echo "edit $1"
-EOF
 chmod +x "$TMP/bin/"* "$TMP/scripts/"*
 mkdir -p "$TMP/recipes/demo"
+echo '# demo build' > "$TMP/recipes/demo/build.sh"
 
 mkdir -p "$TMP/repo"
 cat > "$TMP/repo/INDEX" <<'EOF'
@@ -76,9 +73,10 @@ PATH="$TMP/bin:$PATH" ALTITUDE_AGENT_SCRIPTS="$TMP/scripts" ALTITUDE_AGENT_LOG_R
 grep -q '^demo$' "$TMP/recipes.out"
 
 PATH="$TMP/bin:$PATH" ALTITUDE_AGENT_SCRIPTS="$TMP/scripts" ALTITUDE_AGENT_LOG_ROOT="$TMP/logs" \
-ALTITUDE_EDIT_BIN="$TMP/bin/alt-edit" \
+ALTITUDE_IDE_BIN="$ROOT/rootfs/bin/alt-ide" \
+ALTITUDE_AGENT_SOURCE_ROOT="$TMP" \
   bash "$ROOT/rootfs/bin/alt-agent" edit recipes/demo/build.sh > "$TMP/edit.out"
-grep -q "edit recipes/demo/build.sh" "$TMP/edit.out"
+grep -q "path=recipes/demo/build.sh" "$TMP/edit.out"
 
 PATH="$TMP/bin:$PATH" ALTITUDE_AGENT_SCRIPTS="$TMP/scripts" ALTITUDE_AGENT_LOG_ROOT="$TMP/logs" \
   bash "$ROOT/rootfs/bin/alt-agent" publish-staging > "$TMP/publish.out"

@@ -12,7 +12,7 @@ REPO_ROOT="${ALTITUDE_REPO_ROOT:-$WORKSHOP/repository}"
 PKG_BIN="${ALTITUDE_PKG_BIN:-/bin/pkg}"
 BDBCTL_BIN="${ALTITUDE_BDBCTL_BIN:-/bin/bdbctl}"
 SYSTEMD_AUDIT_BIN="${ALTITUDE_SYSTEMD_AUDIT_BIN:-/bin/systemd-audit}"
-ALT_EDIT_BIN="${ALTITUDE_EDIT_BIN:-/bin/alt-edit}"
+ALT_IDE_BIN="${ALTITUDE_IDE_BIN:-/bin/alt-ide}"
 
 usage() {
   cat <<'USAGE'
@@ -21,7 +21,7 @@ usage: alt-agent COMMAND [ARGS...]
 Safe operator commands for agent-assisted Altitude development:
   env                         print workshop environment exports
   recipes                     list available source recipes
-  edit PATH                   edit an Altitude source file with alt-edit
+  edit PATH                   print an Altitude source file through alt-ide
   build-recipe NAME           build one source recipe into package staging
   publish-staging             publish staged .altpkg files to the local repo
   repo-refresh                verify configured repository metadata
@@ -87,7 +87,7 @@ cmd_edit() {
   local path="${1:-}"
   [ -n "$path" ] || die "missing path"
   log "edit $path"
-  exec "$ALT_EDIT_BIN" "$path"
+  exec "$ALT_IDE_BIN" files open "$path"
 }
 
 cmd_publish_staging() {
@@ -138,9 +138,9 @@ cmd_shell_lint() {
 }
 
 cmd_ide() {
-  [ -x /bin/alt-ide ] || die "missing /bin/alt-ide"
+  [ -x "$ALT_IDE_BIN" ] || die "missing $ALT_IDE_BIN"
   log "ide $*"
-  /bin/alt-ide "$@"
+  "$ALT_IDE_BIN" "$@"
 }
 
 cmd_systemd_audit() {
