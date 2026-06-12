@@ -52,12 +52,14 @@ done
 bash "$ROOT/scripts/assemble-altitude-rootfs.sh" "$TMP/repository" \
   "$TMP/final-root" altitude-base altitude-kernel altitude-firmware \
   altitude-identity altitude-core altitude-services altitude-access \
-  altitude-agentic-shell altitude-desktop-base
+  altitude-agentic-shell altitude-dev-tools altitude-desktop-base
 grep -q '^NAME="Altitude Linux"$' "$TMP/final-root/etc/os-release"
 grep -q '^LANG=C$' "$TMP/final-root/etc/locale.conf"
 [ -f "$TMP/final-root/etc/profile" ]
 [ -x "$TMP/final-root/bin/pkg" ]
 [ -x "$TMP/final-root/bin/alt-agent" ]
+[ -x "$TMP/final-root/bin/alt-edit" ]
+[ -x "$TMP/final-root/bin/alt-ide" ]
 [ -x "$TMP/final-root/bin/altpkg-install" ]
 [ -x "$TMP/final-root/bin/altitude-health" ]
 [ -x "$TMP/final-root/bin/systemd-bridge" ]

@@ -12,6 +12,7 @@ REPO_ROOT="${ALTITUDE_REPO_ROOT:-$WORKSHOP/repository}"
 PKG_BIN="${ALTITUDE_PKG_BIN:-/bin/pkg}"
 BDBCTL_BIN="${ALTITUDE_BDBCTL_BIN:-/bin/bdbctl}"
 SYSTEMD_AUDIT_BIN="${ALTITUDE_SYSTEMD_AUDIT_BIN:-/bin/systemd-audit}"
+ALT_EDIT_BIN="${ALTITUDE_EDIT_BIN:-/bin/alt-edit}"
 
 usage() {
   cat <<'USAGE'
@@ -19,6 +20,8 @@ usage: alt-agent COMMAND [ARGS...]
 
 Safe operator commands for agent-assisted Altitude development:
   env                         print workshop environment exports
+  recipes                     list available source recipes
+  edit PATH                   edit an Altitude source file with alt-edit
   build-recipe NAME           build one source recipe into package staging
   publish-staging             publish staged .altpkg files to the local repo
   repo-refresh                verify configured repository metadata
@@ -65,6 +68,22 @@ cmd_build_recipe() {
   log "build-recipe $name"
   "$SCRIPTS/build-source-recipe.sh" "$name" 2>&1 |
     tee "$LOG_ROOT/build-$name.log"
+}
+
+cmd_recipes() {
+  local root
+  root="$(cd "$SCRIPTS/.." 2>/dev/null && pwd || true)"
+  [ -n "$root" ] || die "source root unavailable from scripts path: $SCRIPTS"
+  [ -d "$root/recipes" ] || die "recipes directory missing: $root/recipes"
+  find "$root/recipes" -mindepth 1 -maxdepth 1 -type d |
+    sed 's|.*/||' | sort
+}
+
+cmd_edit() {
+  local path="${1:-}"
+  [ -n "$path" ] || die "missing path"
+  log "edit $path"
+  exec "$ALT_EDIT_BIN" "$path"
 }
 
 cmd_publish_staging() {
@@ -134,6 +153,8 @@ command="${1:-help}"
 shift || true
 case "$command" in
   env) cmd_env ;;
+  recipes) cmd_recipes ;;
+  edit) cmd_edit "$@" ;;
   build-recipe) cmd_build_recipe "$@" ;;
   publish-staging) cmd_publish_staging "$@" ;;
   repo-refresh) cmd_repo_refresh ;;

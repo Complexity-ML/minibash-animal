@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+POLICY="${ALTITUDE_AGENT_POLICY:-/etc/altitude/agent/policy.conf}"
+[ -r "$POLICY" ] && . "$POLICY"
+
+SOURCE_ROOT="${ALTITUDE_AGENT_SOURCE_ROOT:-/root/minibash-linux}"
+
+if [ "${1:-}" = edit ]; then
+  shift
+  exec /bin/alt-edit "$@"
+fi
+
+if [ -n "${1:-}" ]; then
+  exec /bin/alt-edit "$1"
+fi
+
+cat <<EOF
+Altitude Dev Console
+
+Source:   $SOURCE_ROOT
+Workshop: ${ALTITUDE_WORKSHOP_ROOT:-/srv/altitude}
+
+Edit:
+  alt-ide recipes/zlib/build.sh
+  alt-edit rootfs/bin/alt-agent
+
+Agent:
+  alt-agent status
+  alt-agent recipes
+  alt-agent build-recipe zlib
+  alt-agent publish-staging
+  alt-agent systemd-audit
+
+Git:
+  cd $SOURCE_ROOT
+  git status --short
+
+This is intentionally small: vi + alt-agent + signed packages.
+EOF
