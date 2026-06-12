@@ -171,6 +171,7 @@ function! s:Palette() abort
         \ ['Status', 'AltitudeStatus'],
         \ ['Open file', 'AltitudeFiles'],
         \ ['Search project', 'AltitudeSearch'],
+        \ ['Actions list', 'AltitudeActions'],
         \ ['Build recipe', 'AltitudeBuild'],
         \ ['Dev check', 'AltitudeDevCheck'],
         \ ['Shell lint', 'AltitudeShellLint'],
@@ -181,6 +182,7 @@ function! s:Palette() abort
         \ ['Graphical logs', 'AltitudeLogs'],
         \ ['Git status', 'AltitudeGit'],
         \ ['Keyboard layout', 'AltitudeKeyboard'],
+        \ ['Next upgrades', 'AltitudeNext'],
         \ ]
   let l:menu = ['Altitude command palette:'] + map(copy(l:items), 'printf("%2d. %s", v:key + 1, v:val[0])')
   let l:choice = inputlist(l:menu)
@@ -193,6 +195,8 @@ command! AltitudeStatus call s:Run('status', '/bin/alt-agent status')
 command! AltitudeKeyboard call s:Run('keyboard', 'printf "layout=%s\nxkb=%s\n" "$ALTITUDE_KEYBOARD_LAYOUT" "$XKB_DEFAULT_LAYOUT"')
 command! AltitudeDevEnv call s:Run('dev env', '/bin/alt-agent dev-env')
 command! AltitudeDevCheck call s:Run('dev check', '/bin/alt-agent ide diagnostics run')
+command! AltitudeActions call s:Run('actions', '/bin/alt-agent ide actions list')
+command! AltitudeNext call s:Run('next upgrades', '/bin/alt-agent ide agent next')
 command! -nargs=* AltitudeShellLint call s:Run('shell lint', '/bin/alt-agent ide language bash lint ' . <q-args>)
 command! -nargs=? AltitudeBashRun call s:BashRun(<q-args>)
 command! -nargs=? AltitudeBashNew call s:BashNew(<q-args>)
@@ -212,6 +216,7 @@ nnoremap <leader>as :AltitudeStatus<CR>
 nnoremap <leader>ak :AltitudeKeyboard<CR>
 nnoremap <leader>af :AltitudeFiles<CR>
 nnoremap <leader>a/ :AltitudeSearch<CR>
+nnoremap <leader>ao :AltitudeActions<CR>
 nnoremap <leader>ar :AltitudeRecipes<CR>
 nnoremap <leader>ab :AltitudeBuild<CR>
 nnoremap <leader>ad :AltitudeDevCheck<CR>

@@ -37,11 +37,15 @@ Commands:
   workspace status             show workspace, package and tool status
   files list [QUERY]           list project files
   files open PATH              edit a project file
+  actions list                 list IDE actions for UI/agents
+  actions run ID [ARGS...]     run one IDE action by stable id
   diagnostics run [PATH...]    run project diagnostics
+  diagnostics quick [PATH...]  run fast diagnostics for current work
   task run NAME                run a named task
   agent context [PATH...]      print agent-ready workspace context
   agent doctor [PATH...]       run focused checks for agent work
   agent plan GOAL...           draft an implementation plan from context
+  agent next                   show the next useful IDE/distro upgrades
   language list                list language plugins
   language bash lint [PATH...] lint Bash files
   language bash run PATH       run one Bash script safely from workspace
@@ -93,7 +97,58 @@ cmd_diagnostics() {
   shift || true
   case "$sub" in
     run) exec "$ALT_AGENT_BIN" dev-check "$@" ;;
+    quick) exec "$ALT_AGENT_BIN" shell-lint "$@" ;;
     *) die "unknown diagnostics command: $sub" ;;
+  esac
+}
+
+cmd_actions() {
+  local sub="${1:-list}" id
+  shift || true
+  case "$sub" in
+    list)
+      cat <<'EOF'
+workspace.status	Workspace status	alt-ide workspace status
+files.list	List files	alt-ide files list [QUERY]
+files.open	Open file	alt-ide files open PATH
+diagnostics.run	Full diagnostics	alt-ide diagnostics run
+diagnostics.quick	Fast diagnostics	alt-ide diagnostics quick [PATH...]
+agent.context	Agent context	alt-ide agent context [PATH...]
+agent.doctor	Agent doctor	alt-ide agent doctor [PATH...]
+agent.plan	Agent plan	alt-ide agent plan GOAL...
+agent.next	Next upgrades	alt-ide agent next
+language.bash.lint	Bash lint	alt-ide language bash lint [PATH...]
+language.bash.run	Bash run	alt-ide language bash run PATH
+language.bash.new	Bash new file	alt-ide language bash new PATH
+task.check	Task check	alt-ide task run check
+task.publish	Task publish	alt-ide task run publish
+task.audit	Task audit	alt-ide task run audit
+EOF
+      ;;
+    run)
+      id="${1:-}"
+      [ -n "$id" ] || die "usage: alt-ide actions run ID [ARGS...]"
+      shift || true
+      case "$id" in
+        workspace.status) cmd_workspace status "$@" ;;
+        files.list) cmd_files list "$@" ;;
+        files.open) cmd_files open "$@" ;;
+        diagnostics.run) cmd_diagnostics run "$@" ;;
+        diagnostics.quick) cmd_diagnostics quick "$@" ;;
+        agent.context) cmd_agent context "$@" ;;
+        agent.doctor) cmd_agent doctor "$@" ;;
+        agent.plan) cmd_agent plan "$@" ;;
+        agent.next) cmd_agent next "$@" ;;
+        language.bash.lint) cmd_language bash lint "$@" ;;
+        language.bash.run) cmd_language bash run "$@" ;;
+        language.bash.new) cmd_language bash new "$@" ;;
+        task.check) cmd_task run check "$@" ;;
+        task.publish) cmd_task run publish "$@" ;;
+        task.audit) cmd_task run audit "$@" ;;
+        *) die "unknown action id: $id" ;;
+      esac
+      ;;
+    *) die "unknown actions command: $sub" ;;
   esac
 }
 
@@ -174,6 +229,32 @@ Useful commands:
   alt-ide task run check
 EOF
       ;;
+    next)
+      project_cd
+      cat <<'EOF'
+# Altitude IDE Next Upgrades
+
+1. Package fast navigation tools:
+   - git
+   - ripgrep
+   - make
+
+2. Package real Bash diagnostics:
+   - shellcheck
+   - shfmt
+   - bats
+
+3. Add an IDE UI shell over this command API:
+   - read actions from: alt-ide actions list
+   - run actions with: alt-ide actions run ID
+   - keep logic in CLI, keep UI thin
+
+4. Add language plugins after Bash:
+   - c
+   - python
+   - altitude-recipes
+EOF
+      ;;
     *) die "unknown agent command: $sub" ;;
   esac
 }
@@ -230,6 +311,7 @@ shift || true
 case "$command" in
   workspace) cmd_workspace "$@" ;;
   files) cmd_files "$@" ;;
+  actions) cmd_actions "$@" ;;
   diagnostics) cmd_diagnostics "$@" ;;
   task) cmd_task "$@" ;;
   agent) cmd_agent "$@" ;;

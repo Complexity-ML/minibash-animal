@@ -52,6 +52,16 @@ grep -q "scripts/demo.sh" "$TMP/files.out"
 bash "$ROOT/rootfs/bin/alt-ide" files open scripts/demo.sh > "$TMP/open.out"
 grep -q "edit scripts/demo.sh" "$TMP/open.out"
 
+bash "$ROOT/rootfs/bin/alt-ide" actions list > "$TMP/actions.out"
+grep -q "^agent.context" "$TMP/actions.out"
+grep -q "^language.bash.lint" "$TMP/actions.out"
+
+bash "$ROOT/rootfs/bin/alt-ide" actions run files.list demo > "$TMP/action-files.out"
+grep -q "scripts/demo.sh" "$TMP/action-files.out"
+
+bash "$ROOT/rootfs/bin/alt-ide" actions run diagnostics.quick scripts/demo.sh > "$TMP/action-quick.out"
+grep -q "shell-lint-ok scripts/demo.sh" "$TMP/action-quick.out"
+
 bash "$ROOT/rootfs/bin/alt-ide" language list > "$TMP/languages.out"
 grep -q "^bash$" "$TMP/languages.out"
 
@@ -76,5 +86,9 @@ grep -q "shell-lint-ok scripts/demo.sh" "$TMP/doctor.out"
 bash "$ROOT/rootfs/bin/alt-ide" agent plan "add bash diagnostics" > "$TMP/plan.out"
 grep -q "Altitude IDE Agent Plan" "$TMP/plan.out"
 grep -q "add bash diagnostics" "$TMP/plan.out"
+
+bash "$ROOT/rootfs/bin/alt-ide" agent next > "$TMP/next.out"
+grep -q "Altitude IDE Next Upgrades" "$TMP/next.out"
+grep -q "alt-ide actions list" "$TMP/next.out"
 
 echo "Altitude IDE: ok"
