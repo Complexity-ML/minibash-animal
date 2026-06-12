@@ -48,10 +48,17 @@ forcing the IDE to become a service manager.
 
 ## Desktop contract
 
-`altitude-ide-ui` is the first GNOME-facing shell. It discovers actions with
-`alt-ide actions list` and executes them with `alt-ide session run`. The UI
-must stay thin: workflows belong in the CLI so they remain testable, usable
-over SSH, and portable to later frontends.
+`altitude-ide-ui` is the first GNOME-facing IDE shell. It provides a workspace
+file browser, a monospace text editor, save support, Bash lint/run shortcuts,
+agent actions, and an output panel. It discovers files with `alt-ide files
+list`, discovers actions with `alt-ide actions list`, and executes workflows
+with `alt-ide session run`.
+
+The UI must stay light: workflows belong in the CLI so they remain testable,
+usable over SSH, and portable to later frontends. Large features should become
+modules before the UI grows into an opaque JavaScript bundle. Electron is
+allowed later if it stays readable and modular; it must remain an app shell
+over the `alt-ide` backend rather than swallowing the whole IDE logic.
 
 Vim can remain installed as an editor fallback, but it must not be the default
 Altitude IDE experience. Desktop launchers should expose `altitude-ide` and

@@ -5,6 +5,8 @@ imports.gi.versions.Gtk = '4.0';
 const ByteArray = imports.byteArray;
 const { Gio, GLib, Gtk } = imports.gi;
 
+const ALT_IDE_BIN = GLib.getenv('ALT_IDE_BIN') || '/bin/alt-ide';
+
 function bytesToString(bytes) {
     return bytes ? ByteArray.toString(bytes) : '';
 }
@@ -58,8 +60,18 @@ function shellSplit(text) {
     }
 }
 
+function escapeText(text) {
+    return GLib.markup_escape_text(text, -1);
+}
+
+function parseWorkspaceRoot() {
+    const result = runSync([ALT_IDE_BIN, 'workspace', 'status']);
+    const line = result.text.split('\n').find(item => item.startsWith('root='));
+    return line ? line.slice(5) : GLib.get_current_dir();
+}
+
 function loadActions() {
-    const result = runSync(['/bin/alt-ide', 'actions', 'list']);
+    const result = runSync([ALT_IDE_BIN, 'actions', 'list']);
     const lines = result.text.split('\n').filter(line => line.trim() !== '');
     return lines.map(line => {
         const parts = line.split('\t');
@@ -71,98 +83,303 @@ function loadActions() {
     });
 }
 
+function loadFiles(query) {
+    const argv = [ALT_IDE_BIN, 'files', 'list'];
+    if (query.trim() !== '')
+        argv.push(query.trim());
+    const result = runSync(argv);
+    if (!result.ok)
+        return [];
+    return result.text.split('\n')
+        .map(line => line.trim())
+        .filter(line => line !== '' && !line.startsWith('alt-ide:'));
+}
+
+function safeRelativePath(path) {
+    return path !== '' &&
+        !path.startsWith('/') &&
+        path !== '.' &&
+        !path.startsWith('../') &&
+        !path.includes('/../') &&
+        !path.endsWith('/..');
+}
+
+function pathInWorkspace(root, relpath) {
+    return GLib.build_filenamev([root, relpath]);
+}
+
+function readFile(root, relpath) {
+    if (!safeRelativePath(relpath))
+        throw new Error(`unsafe path: ${relpath}`);
+    const file = Gio.File.new_for_path(pathInWorkspace(root, relpath));
+    const [ok, contents] = file.load_contents(null);
+    if (!ok)
+        throw new Error(`cannot read: ${relpath}`);
+    return bytesToString(contents);
+}
+
+function writeFile(root, relpath, text) {
+    if (!safeRelativePath(relpath))
+        throw new Error(`unsafe path: ${relpath}`);
+    const path = pathInWorkspace(root, relpath);
+    GLib.mkdir_with_parents(GLib.path_get_dirname(path), 0o755);
+    GLib.file_set_contents(path, text);
+}
+
+function bufferText(buffer) {
+    const start = buffer.get_start_iter();
+    const end = buffer.get_end_iter();
+    return buffer.get_text(start, end, true);
+}
+
+function setBufferText(buffer, text) {
+    buffer.set_text(text, -1);
+}
+
+function makeHeader(title, subtitle) {
+    const box = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 2,
+    });
+    box.append(new Gtk.Label({
+        label: `<b>${escapeText(title)}</b>`,
+        use_markup: true,
+        xalign: 0,
+    }));
+    box.append(new Gtk.Label({
+        label: subtitle,
+        xalign: 0,
+        wrap: true,
+    }));
+    return box;
+}
+
 const app = new Gtk.Application({
     application_id: 'org.altitude.IDE',
     flags: Gio.ApplicationFlags.FLAGS_NONE,
 });
 
 app.connect('activate', application => {
+    const workspaceRoot = parseWorkspaceRoot();
+    const actions = loadActions();
+    let visibleFiles = [];
+    let visibleActions = [];
+    let currentFile = '';
+    let dirty = false;
+
     const win = new Gtk.ApplicationWindow({
         application,
         title: 'Altitude IDE',
-        default_width: 1100,
-        default_height: 720,
+        default_width: 1320,
+        default_height: 820,
     });
 
     const root = new Gtk.Box({
         orientation: Gtk.Orientation.VERTICAL,
-        spacing: 10,
-        margin_top: 14,
-        margin_bottom: 14,
-        margin_start: 14,
-        margin_end: 14,
-    });
-
-    const title = new Gtk.Label({
-        label: '<b>Altitude IDE</b>\nAgentic workspace for building Altitude Linux.',
-        use_markup: true,
-        xalign: 0,
-    });
-    root.append(title);
-
-    const toolbar = new Gtk.Box({
-        orientation: Gtk.Orientation.HORIZONTAL,
         spacing: 8,
+        margin_top: 10,
+        margin_bottom: 10,
+        margin_start: 10,
+        margin_end: 10,
     });
-    root.append(toolbar);
 
-    const filterEntry = new Gtk.Entry({
-        placeholder_text: 'filter actions',
-        hexpand: true,
+    const topbar = new Gtk.Box({
+        orientation: Gtk.Orientation.HORIZONTAL,
+        spacing: 10,
     });
-    toolbar.append(filterEntry);
+    root.append(topbar);
 
-    const argsEntry = new Gtk.Entry({
-        placeholder_text: 'arguments for selected action',
-        hexpand: true,
+    const title = makeHeader('Altitude IDE', `Workspace: ${workspaceRoot}`);
+    title.hexpand = true;
+    topbar.append(title);
+
+    const newPathEntry = new Gtk.Entry({
+        placeholder_text: 'new file path, e.g. scripts/demo.sh',
+        width_chars: 34,
     });
-    toolbar.append(argsEntry);
+    topbar.append(newPathEntry);
 
-    const runButton = new Gtk.Button({ label: 'Run' });
-    toolbar.append(runButton);
+    const newButton = new Gtk.Button({ label: 'New Bash' });
+    const saveButton = new Gtk.Button({ label: 'Save' });
+    const lintButton = new Gtk.Button({ label: 'Lint' });
+    const runScriptButton = new Gtk.Button({ label: 'Run Script' });
+    topbar.append(newButton);
+    topbar.append(saveButton);
+    topbar.append(lintButton);
+    topbar.append(runScriptButton);
 
-    const split = new Gtk.Paned({
+    const main = new Gtk.Paned({
         orientation: Gtk.Orientation.HORIZONTAL,
         wide_handle: true,
         hexpand: true,
         vexpand: true,
     });
-    root.append(split);
+    root.append(main);
 
-    const actionList = new Gtk.ListBox({
+    const left = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 6,
+        margin_end: 6,
+    });
+    main.set_start_child(left);
+
+    left.append(makeHeader('Files', 'Open source files from the Altitude workspace.'));
+
+    const fileFilter = new Gtk.Entry({
+        placeholder_text: 'filter files',
+    });
+    left.append(fileFilter);
+
+    const fileList = new Gtk.ListBox({
         selection_mode: Gtk.SelectionMode.SINGLE,
         vexpand: true,
     });
+    const fileScroller = new Gtk.ScrolledWindow({
+        child: fileList,
+        min_content_width: 300,
+        hscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+        vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+        vexpand: true,
+    });
+    left.append(fileScroller);
+
+    const centerRight = new Gtk.Paned({
+        orientation: Gtk.Orientation.HORIZONTAL,
+        wide_handle: true,
+        hexpand: true,
+        vexpand: true,
+    });
+    main.set_end_child(centerRight);
+
+    const editorBox = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 6,
+        margin_start: 6,
+        margin_end: 6,
+        hexpand: true,
+        vexpand: true,
+    });
+    centerRight.set_start_child(editorBox);
+
+    const fileLabel = new Gtk.Label({
+        label: 'No file open',
+        xalign: 0,
+        selectable: true,
+    });
+    editorBox.append(fileLabel);
+
+    const editor = new Gtk.TextView({
+        editable: true,
+        monospace: true,
+        hexpand: true,
+        vexpand: true,
+        wrap_mode: Gtk.WrapMode.NONE,
+    });
+    const editorBuffer = editor.get_buffer();
+    const editorScroller = new Gtk.ScrolledWindow({
+        child: editor,
+        hexpand: true,
+        vexpand: true,
+        hscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+        vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+    });
+    editorBox.append(editorScroller);
+
+    const right = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 6,
+        margin_start: 6,
+    });
+    centerRight.set_end_child(right);
+
+    right.append(makeHeader('Agent Actions', 'Run diagnostics and agent helpers without leaving the IDE.'));
+
+    const actionFilter = new Gtk.Entry({
+        placeholder_text: 'filter actions',
+    });
+    right.append(actionFilter);
+
+    const actionArgs = new Gtk.Entry({
+        placeholder_text: 'arguments for selected action',
+    });
+    right.append(actionArgs);
+
+    const runActionButton = new Gtk.Button({ label: 'Run Action' });
+    right.append(runActionButton);
+
+    const actionList = new Gtk.ListBox({
+        selection_mode: Gtk.SelectionMode.SINGLE,
+    });
     const actionScroller = new Gtk.ScrolledWindow({
         child: actionList,
-        min_content_width: 320,
+        min_content_width: 310,
+        min_content_height: 210,
         hscrollbar_policy: Gtk.PolicyType.NEVER,
         vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
     });
-    split.set_start_child(actionScroller);
+    right.append(actionScroller);
 
-    const view = new Gtk.TextView({
+    const output = new Gtk.TextView({
         editable: false,
         monospace: true,
         hexpand: true,
         vexpand: true,
+        wrap_mode: Gtk.WrapMode.WORD_CHAR,
     });
-    const buffer = view.get_buffer();
+    const outputBuffer = output.get_buffer();
     const outputScroller = new Gtk.ScrolledWindow({
-        child: view,
+        child: output,
+        min_content_width: 310,
         hexpand: true,
         vexpand: true,
+        hscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+        vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
     });
-    split.set_end_child(outputScroller);
+    right.append(outputScroller);
 
-    const actions = loadActions();
-    let visibleActions = [];
+    function setOutput(titleText, text) {
+        outputBuffer.set_text(`${titleText}\n${'='.repeat(titleText.length)}\n\n${text}`, -1);
+    }
+
+    function refreshFileLabel() {
+        const suffix = dirty ? ' *' : '';
+        fileLabel.set_text(currentFile ? `${currentFile}${suffix}` : 'No file open');
+    }
+
+    function selectedFile() {
+        const row = fileList.get_selected_row();
+        if (!row)
+            return '';
+        return visibleFiles[row.get_index()] || '';
+    }
 
     function selectedAction() {
         const row = actionList.get_selected_row();
         if (!row)
             return null;
         return visibleActions[row.get_index()] || null;
+    }
+
+    function renderFiles() {
+        while (true) {
+            const child = fileList.get_first_child();
+            if (!child)
+                break;
+            fileList.remove(child);
+        }
+
+        visibleFiles = loadFiles(fileFilter.get_text());
+        for (const path of visibleFiles) {
+            fileList.append(new Gtk.Label({
+                label: path,
+                xalign: 0,
+                selectable: true,
+                margin_top: 5,
+                margin_bottom: 5,
+                margin_start: 8,
+                margin_end: 8,
+            }));
+        }
     }
 
     function renderActions() {
@@ -173,7 +390,7 @@ app.connect('activate', application => {
             actionList.remove(child);
         }
 
-        const query = filterEntry.get_text().trim().toLowerCase();
+        const query = actionFilter.get_text().trim().toLowerCase();
         visibleActions = actions.filter(action =>
             query === '' ||
             action.id.toLowerCase().includes(query) ||
@@ -185,13 +402,13 @@ app.connect('activate', application => {
             const box = new Gtk.Box({
                 orientation: Gtk.Orientation.VERTICAL,
                 spacing: 2,
-                margin_top: 8,
-                margin_bottom: 8,
+                margin_top: 7,
+                margin_bottom: 7,
                 margin_start: 8,
                 margin_end: 8,
             });
             box.append(new Gtk.Label({
-                label: `<b>${GLib.markup_escape_text(action.label, -1)}</b>`,
+                label: `<b>${escapeText(action.label)}</b>`,
                 use_markup: true,
                 xalign: 0,
             }));
@@ -204,39 +421,111 @@ app.connect('activate', application => {
         }
     }
 
-    function show(label, text) {
-        buffer.set_text(`${label}\n${'='.repeat(label.length)}\n\n${text}`, -1);
+    function openFile(path) {
+        if (!path)
+            return;
+        try {
+            setBufferText(editorBuffer, readFile(workspaceRoot, path));
+            currentFile = path;
+            dirty = false;
+            refreshFileLabel();
+            setOutput('Open', `opened ${path}\n`);
+        } catch (e) {
+            setOutput('Open failed', `${e.message}\n`);
+        }
     }
 
-    function runSelected() {
-        const action = selectedAction();
-        if (!action) {
-            show('Altitude IDE', 'No action selected.\n');
+    function saveFile() {
+        if (!currentFile) {
+            setOutput('Save', 'No file open.\n');
             return;
         }
-        const args = shellSplit(argsEntry.get_text());
-        const argv = ['/bin/alt-ide', 'session', 'run', action.id, ...args];
-        show(action.label, 'Running...\n');
-        runAsync(argv, output => show(action.label, output));
+        try {
+            writeFile(workspaceRoot, currentFile, bufferText(editorBuffer));
+            dirty = false;
+            refreshFileLabel();
+            setOutput('Save', `saved ${currentFile}\n`);
+        } catch (e) {
+            setOutput('Save failed', `${e.message}\n`);
+        }
     }
 
-    function showDashboard() {
-        runAsync(['/bin/alt-ide', 'session', 'start', 'ui'], startOutput => {
-            runAsync(['/bin/alt-ide', 'actions', 'run', 'workspace.status'], statusOutput => {
-                show('Dashboard', `${startOutput}\n${statusOutput}`);
-            });
+    function runIdeAction(id, args, titleText) {
+        const argv = [ALT_IDE_BIN, 'session', 'run', id, ...args];
+        setOutput(titleText, 'Running...\n');
+        runAsync(argv, text => setOutput(titleText, text));
+    }
+
+    function runSelectedAction() {
+        const action = selectedAction();
+        if (!action) {
+            setOutput('Action', 'No action selected.\n');
+            return;
+        }
+        runIdeAction(action.id, shellSplit(actionArgs.get_text()), action.label);
+    }
+
+    function createBashFile() {
+        const path = newPathEntry.get_text().trim();
+        if (!safeRelativePath(path)) {
+            setOutput('New Bash', 'Choose a relative path inside the workspace.\n');
+            return;
+        }
+        runIdeAction('language.bash.new', [path], 'New Bash');
+        currentFile = path;
+        setBufferText(editorBuffer, '#!/usr/bin/env bash\nset -euo pipefail\n\n');
+        dirty = true;
+        refreshFileLabel();
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
+            renderFiles();
+            return GLib.SOURCE_REMOVE;
         });
     }
 
-    runButton.connect('clicked', runSelected);
-    actionList.connect('row-activated', runSelected);
-    filterEntry.connect('changed', renderActions);
-    argsEntry.connect('activate', runSelected);
+    editorBuffer.connect('changed', () => {
+        if (currentFile) {
+            dirty = true;
+            refreshFileLabel();
+        }
+    });
 
+    fileFilter.connect('changed', renderFiles);
+    fileList.connect('row-activated', () => openFile(selectedFile()));
+    saveButton.connect('clicked', saveFile);
+    lintButton.connect('clicked', () => {
+        if (!currentFile) {
+            setOutput('Bash lint', 'No file open.\n');
+            return;
+        }
+        saveFile();
+        runIdeAction('language.bash.lint', [currentFile], 'Bash lint');
+    });
+    runScriptButton.connect('clicked', () => {
+        if (!currentFile) {
+            setOutput('Run Script', 'No file open.\n');
+            return;
+        }
+        saveFile();
+        runIdeAction('language.bash.run', [currentFile], 'Run Script');
+    });
+    newButton.connect('clicked', createBashFile);
+    newPathEntry.connect('activate', createBashFile);
+
+    actionFilter.connect('changed', renderActions);
+    actionList.connect('row-activated', runSelectedAction);
+    runActionButton.connect('clicked', runSelectedAction);
+    actionArgs.connect('activate', runSelectedAction);
+
+    renderFiles();
     renderActions();
     win.set_child(root);
     win.present();
-    showDashboard();
+
+    runAsync([ALT_IDE_BIN, 'session', 'start', 'ui'], startOutput => {
+        runAsync([ALT_IDE_BIN, 'actions', 'run', 'workspace.status'], statusOutput => {
+            setOutput('Dashboard', `${startOutput}\n${statusOutput}`);
+        });
+    });
 });
 
 app.run(ARGV);
