@@ -106,6 +106,36 @@ function! s:SearchProject(query) abort
   endif
 endfunction
 
+function! s:BashRun(arg) abort
+  let l:path = empty(a:arg) ? expand('%') : a:arg
+  if empty(l:path)
+    echo "AltitudeBashRun: no script selected"
+    return
+  endif
+  call s:Run('bash run ' . l:path, '/bin/alt-agent ide language bash run ' . shellescape(l:path))
+endfunction
+
+function! s:BashNew(arg) abort
+  let l:path = empty(a:arg) ? input('New Bash file: ') : a:arg
+  if empty(l:path)
+    echo "AltitudeBashNew: no path selected"
+    return
+  endif
+  if l:path =~# '^/' || l:path =~# '\(^\|/\)\.\.\(/\|$\)'
+    echo "AltitudeBashNew: unsafe path"
+    return
+  endif
+  let l:full = g:altitude_source_root . '/' . l:path
+  if filereadable(l:full)
+    execute 'edit ' . fnameescape(l:full)
+    return
+  endif
+  call mkdir(fnamemodify(l:full, ':h'), 'p')
+  call writefile(['#!/usr/bin/env bash', 'set -euo pipefail', ''], l:full)
+  call setfperm(l:full, 'rwxr-xr-x')
+  execute 'edit ' . fnameescape(l:full)
+endfunction
+
 function! s:RecipeFromPath() abort
   let l:path = expand('%:p')
   let l:root = fnamemodify(g:altitude_source_root, ':p')
@@ -144,6 +174,8 @@ function! s:Palette() abort
         \ ['Build recipe', 'AltitudeBuild'],
         \ ['Dev check', 'AltitudeDevCheck'],
         \ ['Shell lint', 'AltitudeShellLint'],
+        \ ['Bash run current', 'AltitudeBashRun'],
+        \ ['Bash new file', 'AltitudeBashNew'],
         \ ['Publish staging', 'AltitudePublish'],
         \ ['Systemd audit', 'AltitudeAudit'],
         \ ['Graphical logs', 'AltitudeLogs'],
@@ -160,8 +192,10 @@ endfunction
 command! AltitudeStatus call s:Run('status', '/bin/alt-agent status')
 command! AltitudeKeyboard call s:Run('keyboard', 'printf "layout=%s\nxkb=%s\n" "$ALTITUDE_KEYBOARD_LAYOUT" "$XKB_DEFAULT_LAYOUT"')
 command! AltitudeDevEnv call s:Run('dev env', '/bin/alt-agent dev-env')
-command! AltitudeDevCheck call s:Run('dev check', '/bin/alt-agent dev-check')
-command! -nargs=* AltitudeShellLint call s:Run('shell lint', '/bin/alt-agent shell-lint ' . <q-args>)
+command! AltitudeDevCheck call s:Run('dev check', '/bin/alt-agent ide diagnostics run')
+command! -nargs=* AltitudeShellLint call s:Run('shell lint', '/bin/alt-agent ide language bash lint ' . <q-args>)
+command! -nargs=? AltitudeBashRun call s:BashRun(<q-args>)
+command! -nargs=? AltitudeBashNew call s:BashNew(<q-args>)
 command! -nargs=? AltitudeFiles call s:FindFile(<q-args>)
 command! -nargs=? AltitudeSearch call s:SearchProject(<q-args>)
 command! AltitudeRecipes call s:Run('recipes', '/bin/alt-agent recipes')
@@ -182,9 +216,10 @@ nnoremap <leader>ar :AltitudeRecipes<CR>
 nnoremap <leader>ab :AltitudeBuild<CR>
 nnoremap <leader>ad :AltitudeDevCheck<CR>
 nnoremap <leader>ac :AltitudeShellLint<CR>
+nnoremap <leader>ax :AltitudeBashRun<CR>
 nnoremap <leader>ap :AltitudePublish<CR>
 nnoremap <leader>aa :AltitudeAudit<CR>
 nnoremap <leader>ag :AltitudeGit<CR>
 nnoremap <leader>al :AltitudeLogs<CR>
 
-echo "Altitude Vim IDE [" . g:altitude_keyboard_layout . "]: Ctrl-P palette, <Space>af files, <Space>a/ search, <Space>ad check"
+echo "Altitude Vim IDE [" . g:altitude_keyboard_layout . "]: Ctrl-P palette, <Space>af files, <Space>a/ search, <Space>ax bash run"

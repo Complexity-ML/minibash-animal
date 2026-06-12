@@ -5,36 +5,242 @@ POLICY="${ALTITUDE_AGENT_POLICY:-/etc/altitude/agent/policy.conf}"
 [ -r "$POLICY" ] && . "$POLICY"
 
 SOURCE_ROOT="${ALTITUDE_AGENT_SOURCE_ROOT:-/root/minibash-linux}"
+[ -d "$SOURCE_ROOT" ] || SOURCE_ROOT="$(pwd)"
+ALT_AGENT_BIN="${ALT_IDE_AGENT_BIN:-/bin/alt-agent}"
+ALT_EDIT_BIN="${ALT_IDE_EDIT_BIN:-/bin/alt-edit}"
+ALT_DEV_ENV_BIN="${ALT_IDE_DEV_ENV_BIN:-/bin/alt-dev-env}"
+ALT_SHELL_LINT_BIN="${ALT_IDE_SHELL_LINT_BIN:-/bin/alt-shell-lint}"
 
-if [ "${1:-}" = edit ]; then
-  shift
-  exec /bin/alt-edit "$@"
-fi
+die() { echo "alt-ide: $*" >&2; exit 1; }
+valid_relpath() {
+  case "${1:-}" in
+    ""|/*|*'/../'*|../*|*/..|.) return 1 ;;
+    *) return 0 ;;
+  esac
+}
 
-if [ -n "${1:-}" ]; then
-  exec /bin/alt-edit "$1"
-fi
+project_cd() {
+  [ -d "$SOURCE_ROOT" ] || die "workspace missing: $SOURCE_ROOT"
+  cd "$SOURCE_ROOT"
+}
 
-cat <<EOF
-Altitude Dev Console
+usage() {
+  cat <<'USAGE'
+usage: alt-ide COMMAND [ARGS...]
+       alt-ide PATH
 
-Source:   $SOURCE_ROOT
-Workshop: ${ALTITUDE_WORKSHOP_ROOT:-/srv/altitude}
+General Altitude IDE command surface. Bash is the first native language, but
+the model is language-agnostic: workspace, files, diagnostics, tasks and
+language plugins.
 
-Edit:
-  alt-ide recipes/zlib/build.sh
-  alt-edit rootfs/bin/alt-agent
+Commands:
+  workspace status             show workspace, package and tool status
+  files list [QUERY]           list project files
+  files open PATH              edit a project file
+  diagnostics run [PATH...]    run project diagnostics
+  task run NAME                run a named task
+  agent context [PATH...]      print agent-ready workspace context
+  agent doctor [PATH...]       run focused checks for agent work
+  agent plan GOAL...           draft an implementation plan from context
+  language list                list language plugins
+  language bash lint [PATH...] lint Bash files
+  language bash run PATH       run one Bash script safely from workspace
+  language bash new PATH       create a Bash script template and open it
 
-Agent:
-  alt-agent status
-  alt-agent recipes
-  alt-agent build-recipe zlib
-  alt-agent publish-staging
-  alt-agent systemd-audit
+Compatibility:
+  alt-ide edit PATH
+  alt-ide PATH                 open PATH
+USAGE
+}
 
-Git:
-  cd $SOURCE_ROOT
-  git status --short
+cmd_workspace() {
+  case "${1:-status}" in
+    status)
+      echo "Altitude IDE workspace"
+      echo "root=$SOURCE_ROOT"
+      echo
+      "$ALT_AGENT_BIN" status 2>/dev/null || true
+      echo
+      "$ALT_AGENT_BIN" dev-env 2>/dev/null || "$ALT_DEV_ENV_BIN"
+      ;;
+    *) die "unknown workspace command: ${1:-}" ;;
+  esac
+}
 
-This is intentionally small: vi + alt-agent + signed packages.
+cmd_files() {
+  local sub="${1:-list}" query="${2:-}"
+  project_cd
+  case "$sub" in
+    list)
+      if command -v rg >/dev/null 2>&1; then
+        rg --files | { [ -z "$query" ] && cat || grep -i -- "$query"; }
+      else
+        find . -type f | sed 's#^\./##' |
+          { [ -z "$query" ] && cat || grep -i -- "$query"; }
+      fi
+      ;;
+    open)
+      local path="${2:-}"
+      valid_relpath "$path" || die "unsafe path: $path"
+      exec "$ALT_EDIT_BIN" "$path"
+      ;;
+    *) die "unknown files command: $sub" ;;
+  esac
+}
+
+cmd_diagnostics() {
+  local sub="${1:-run}"
+  shift || true
+  case "$sub" in
+    run) exec "$ALT_AGENT_BIN" dev-check "$@" ;;
+    *) die "unknown diagnostics command: $sub" ;;
+  esac
+}
+
+cmd_task() {
+  local sub="${1:-}" name="${2:-}"
+  [ "$sub" = run ] || die "usage: alt-ide task run NAME"
+  [ -n "$name" ] || die "missing task name"
+  case "$name" in
+    check) exec "$ALT_AGENT_BIN" dev-check ;;
+    lint) exec "$ALT_AGENT_BIN" shell-lint ;;
+    status) exec "$ALT_AGENT_BIN" status ;;
+    recipes) exec "$ALT_AGENT_BIN" recipes ;;
+    publish) exec "$ALT_AGENT_BIN" publish-staging ;;
+    audit) exec "$ALT_AGENT_BIN" systemd-audit ;;
+    *) die "unknown task: $name" ;;
+  esac
+}
+
+cmd_agent() {
+  local sub="${1:-context}"
+  shift || true
+  case "$sub" in
+    context)
+      project_cd
+      local pwd_value
+      pwd_value="$(pwd)"
+      echo "# Altitude IDE Agent Context"
+      echo "workspace=$SOURCE_ROOT"
+      echo "pwd=$pwd_value"
+      echo
+      echo "## Tools"
+      "$ALT_AGENT_BIN" dev-env 2>/dev/null || "$ALT_DEV_ENV_BIN"
+      echo
+      echo "## Git"
+      if command -v git >/dev/null 2>&1 && [ -d .git ]; then
+        git status --short
+      else
+        echo "git unavailable"
+      fi
+      echo
+      echo "## Focus Files"
+      if [ "$#" -gt 0 ]; then
+        for path in "$@"; do
+          valid_relpath "$path" || die "unsafe path: $path"
+          [ -e "$path" ] && printf '%s\n' "$path"
+        done
+      else
+        cmd_files list | sed -n '1,80p'
+      fi
+      ;;
+    doctor)
+      project_cd
+      echo "# Altitude IDE Agent Doctor"
+      "$ALT_AGENT_BIN" dev-env 2>/dev/null || "$ALT_DEV_ENV_BIN"
+      echo
+      "$ALT_AGENT_BIN" shell-lint "$@" 2>/dev/null ||
+        "$ALT_SHELL_LINT_BIN" "$@"
+      ;;
+    plan)
+      local goal="$*"
+      [ -n "$goal" ] || die "usage: alt-ide agent plan GOAL..."
+      project_cd
+      cat <<EOF
+# Altitude IDE Agent Plan
+goal=$goal
+workspace=$SOURCE_ROOT
+
+1. Inspect the relevant files and current package ownership.
+2. Make the smallest source change that keeps Altitude generic.
+3. Run focused diagnostics with: alt-ide agent doctor [PATH...]
+4. Run broader checks with: alt-ide diagnostics run
+5. Package and publish only after tests pass.
+
+Useful commands:
+  alt-ide agent context
+  alt-ide files list QUERY
+  alt-ide language bash lint PATH
+  alt-ide task run check
 EOF
+      ;;
+    *) die "unknown agent command: $sub" ;;
+  esac
+}
+
+cmd_language() {
+  local language="${1:-list}"
+  shift || true
+  case "$language" in
+    list)
+      echo "bash"
+      ;;
+    bash)
+      cmd_language_bash "$@"
+      ;;
+    *) die "unknown language plugin: $language" ;;
+  esac
+}
+
+cmd_language_bash() {
+  local sub="${1:-lint}"
+  shift || true
+  case "$sub" in
+    lint)
+      exec "$ALT_AGENT_BIN" shell-lint "$@"
+      ;;
+    run)
+      local path="${1:-}"
+      valid_relpath "$path" || die "unsafe script path: $path"
+      project_cd
+      [ -f "$path" ] || die "script missing: $path"
+      bash "$path"
+      ;;
+    new)
+      local path="${1:-}"
+      valid_relpath "$path" || die "unsafe script path: $path"
+      project_cd
+      [ ! -e "$path" ] || die "file already exists: $path"
+      mkdir -p "$(dirname "$path")"
+      {
+        echo '#!/usr/bin/env bash'
+        echo 'set -euo pipefail'
+        echo
+      } > "$path"
+      chmod +x "$path"
+      exec "$ALT_EDIT_BIN" "$path"
+      ;;
+    *) die "unknown bash command: $sub" ;;
+  esac
+}
+
+command="${1:-help}"
+shift || true
+
+case "$command" in
+  workspace) cmd_workspace "$@" ;;
+  files) cmd_files "$@" ;;
+  diagnostics) cmd_diagnostics "$@" ;;
+  task) cmd_task "$@" ;;
+  agent) cmd_agent "$@" ;;
+  language) cmd_language "$@" ;;
+  edit) cmd_files open "$@" ;;
+  help|-h|--help) usage ;;
+  *)
+    if valid_relpath "$command"; then
+      cmd_files open "$command"
+    fi
+    usage >&2
+    die "command not allowed: $command"
+    ;;
+esac

@@ -30,6 +30,7 @@ Safe operator commands for agent-assisted Altitude development:
   dev-env                     show native development tool availability
   dev-check                   run Altitude development checks
   shell-lint [PATH...]        lint shell scripts with shellcheck or fallback
+  ide ARGS...                 run the agentic Altitude IDE command surface
   systemd-audit               refresh and show observed systemd audit state
   logs NAME                   show recent systemd journal or service log
   status                      summarize repo, packages and systemd health
@@ -136,6 +137,12 @@ cmd_shell_lint() {
   /bin/alt-shell-lint "$@"
 }
 
+cmd_ide() {
+  [ -x /bin/alt-ide ] || die "missing /bin/alt-ide"
+  log "ide $*"
+  /bin/alt-ide "$@"
+}
+
 cmd_systemd_audit() {
   log "systemd-audit"
   "$SYSTEMD_AUDIT_BIN" refresh
@@ -184,6 +191,7 @@ case "$command" in
   dev-env) cmd_dev_env "$@" ;;
   dev-check) cmd_dev_check "$@" ;;
   shell-lint) cmd_shell_lint "$@" ;;
+  ide) cmd_ide "$@" ;;
   systemd-audit) cmd_systemd_audit ;;
   logs) cmd_logs "$@" ;;
   status) cmd_status ;;
